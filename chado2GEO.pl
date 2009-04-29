@@ -18,6 +18,7 @@ use GEO::Reporter;
 #parse command-line parameters
 my ($unique_id, $output_dir, $config); 
 my $make_tarball = 0; 
+my $tarball_made = 0;
 my $send_to_geo = 0;
 my $option = GetOptions ("unique_id=s"     => \$unique_id,
 			 "out=s"           => \$output_dir,
@@ -123,9 +124,10 @@ for my $datafile (@datafiles) {
 move($tarfile, $report_dir);
 chdir $report_dir;
 system('gzip', $tarfile) == 0 || die "can not zip the tar: $?";
+$tarball_made = 1;
 }
 
-if ($send_to_geo) {
+if ($tarball_made && $send_to_geo) {
 #use ftp to send file to geo ftp site
 my $ftp_host = $ini{ftp}{host};
 my $ftp_username = $ini{ftp}{username};
