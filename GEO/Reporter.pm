@@ -5,13 +5,14 @@ use Carp;
 use Class::Std;
 use Data::Dumper;
 use File::Basename;
-my $validator_path;
-BEGIN {
-    $validator_path = '/home/zheng/validator';
-    push @INC, $validator_path;
-}
 
-use ModENCODE::Config;
+my %config   :ATTR( :name<config>       :default<undef>);
+
+sub BUILD {
+    my ($self, $ident, $args) = @_;
+    my $config = $args->{config};
+    $self->set_config($config);
+}
 
 sub chado2series {
     my ($self, $reader, $experiment, $seriesFH, $unique_id) = @_;
@@ -715,12 +716,12 @@ sub get_protocol_text {
 	return $txt;
     } else {
 	my @url = map {$_->get_value()} @{_get_attr_by_info($protocol, 'heading', 'Protocol\s*URL')};
-	return _get_full_protocol_text($url[0]);
+	return $self->_get_full_protocol_text($url[0]);
     }
 }
 
 sub _get_full_protocol_text {
-    my ($url) = @_;
+    my ($self, $url) = @_;
     require URI;
     require LWP::UserAgent;
     require HTTP::Request::Common;
@@ -728,13 +729,13 @@ sub _get_full_protocol_text {
     require HTTP::Cookies;
     require HTML::TreeBuilder;
     require HTML::FormatText;
+    
     #use wiki render action to get the context instead of left/top panels
     $url .= '&action=render';
     my $uri = URI->new($url);
-
-    ModENCODE::Config::set_cfg($validator_path . '/validator.ini'); 
-    my $username = ModENCODE::Config::get_cfg()->val('wiki', 'username');
-    my $password = ModENCODE::Config::get_cfg()->val('wiki', 'password');
+    
+    my $username = $self->get_config()->{wiki}{username};
+    my $password = $self->get_config()->{wiki}{password};
 
     my $fetcher = new LWP::UserAgent;
     my @ns_headers = (
