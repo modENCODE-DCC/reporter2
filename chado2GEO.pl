@@ -10,90 +10,82 @@ use File::Copy;
 use File::Spec;
 use Net::FTP;
 use Mail::Mailer;
-
-my $validator_path;
-BEGIN {
-    $validator_path = "/home/zheng/validator";
-    push @INC, $validator_path;
-}
-
-#replace with your own validator dir 
-#use lib $validator_path;
-
+use Config::IniFiles;
+use Getopt::Long;
 use ModENCODE::Parser::Chado;
 use GEO::Reporter;
 
-#use AE::Reporter;
+#parse command-line parameters
+my ($unique_id, $output_dir, $config); 
+my $make_tarball = 0; 
+my $send_to_geo = 0;
+my $option = GetOptions ("unique_id=s"     => \$unique_id,
+			 "out=s"           => \$output_dir,
+			 "config=s"        => \$config,
+			 "make_tarball=s"  => \$make_tarball,
+			 "send_to_geo=s"   => \$send_to_geo) or usage();
+usage() if (!$unique_id or !$output_dir or !$config);
+usage() unless -w $output_dir;
+usage() unless -e $config;
 
-#my $experiment_id = $ARGV[0];
-#where does the raw data stored?
-my $report_dir = File::Spec->rel2abs($ARGV[0]);
+#get config
+my %ini;
+tie %ini, 'Config::IniFiles', (-file => $config);
 
-#what is the database/schema name for this dataset?
-my $dbname = $ARGV[1];
+#validator path
+my $validator_path = $ini{validator}{validator};
+BEGIN {
+    push @INC, $validator_path;
+}
 
-#waht is the uniquename for this dataset? this can be the serial number of the dataset
-my $unique_id = 'modencode_' . $ARGV[2];
+#report directory
+my $report_dir = File::Spec->rel2abs($output_dir);
+#make sure $report_dir ends with '/'
+$report_dir .= '/' unless $report_dir =~ /\/$/;
 
-#print $report_dir;
-#print $dbname;
+#what is the database for this dataset?
+my $dbname = $ini{database}{name};
+my $dbhost = $ini{database}{host};
+my $dbusername = $ini{database}{username};
+my $dbpassword = $ini{database}{password};
+#search path for this dataset, this is fixed by modencode chado db
+my $search_path = $dbname . "_" . $unique_id . "_data";
+
+#build the uniquename for this dataset
+my $unique_name = 'modencode_' . $unique_id;
+
+#experiment_id is the serial number in chado experiment table
+#one data one database, so experiment_id is always 1
 my $experiment_id = '1';
-#my $report_dir = '/home/zheng/data';
 
-#is this a new submission?
-my $newsubmission = 1;
-my $username = 'zheng';
-my $passwd = 'weigaocn';
-
-#my $dbname = 'modencode_chado';
-#my $host = 'heartbroken.lbl.gov';
-#my $username = 'db_public';
-#my $passwd = 'ir84#4nm';
-
-#my $dbname = 'modencode2';
-#my $dbname = 'NA_MES4FLAG_EEMB';
-my $host = 'localhost';
-my $dbusername = 'zheng';
-my $dbpasswd = 'weigaocn';
-
-
-
+#start read chado
 my $reader = new ModENCODE::Parser::Chado({
 	'dbname' => $dbname,
-	'host' => $host,
+	'host' => $dbhost,
 	'username' => $dbusername,
-	'password' => $dbpasswd,
+	'password' => $dbpassword,
+	'search_path' => $search_path
    });
-
-if (!$experiment_id) {
-    #print out all experiment id
-} else {
-    #check whether experiment id is valid
-}
 
 $reader->load_experiment($experiment_id);
 my $experiment = $reader->get_experiment();
 print "experiment loaded\n";
 
 my $reporter = new GEO::Reporter();
-
-#make sure $report_dir ends with '/'
-$report_dir .= '/' unless $report_dir =~ /\/$/;
-
-
-my $seriesfile = $report_dir . $unique_id . '_series.txt';
-my $samplefile = $report_dir . $unique_id . '_sample.txt';
+my $seriesfile = $report_dir . $unique_name . '_series.txt';
+my $samplefile = $report_dir . $unique_name . '_sample.txt';
 
 my ($seriesFH, $sampleFH);
 open $seriesFH, ">", $seriesfile;
 open $sampleFH, ">", $samplefile;
-$reporter->chado2series($reader, $experiment, $seriesFH, $unique_id);
+$reporter->chado2series($reader, $experiment, $seriesFH, $unique_name);
 print "done with series\n";
 my ($raw_datafiles, $normalized_datafiles) = $reporter->chado2sample($reader, $experiment, $seriesFH, $sampleFH, $report_dir);
 print "done with sample\n";
 close $sampleFH;
 close $seriesFH;
 
+if ($make_tarball) {
 my @nr_raw_datafiles = nr(@$raw_datafiles);
 my @nr_normalized_datafiles = nr(@$normalized_datafiles);
 
@@ -131,51 +123,35 @@ for my $datafile (@datafiles) {
 move($tarfile, $report_dir);
 chdir $report_dir;
 system('gzip', $tarfile) == 0 || die "can not zip the tar: $?";
+}
 
-#submit to GEO using web deposit
-#ditched because we use supplementary files instead of data_table
-#my $submit_url = 'http://www.ncbi.nlm.nih.gov/geo/submission/depslip.cgi';
-#my $submitter = new LWP::UserAgent;
-#$submitter->cookie_jar({});
-#$submitter->credentials('http://www.ncbi.nlm.nih.gov/', 'geo/submission/depslip.cgi', $username, $passwd);
-#my $subtype = $newsubmission ? 'new' : 'update';
-#my $request = POST($submit_url,
-#		   Content_Type => 'form-data',
-#		   Content => [state => '2',
-#			       subtype => $subtype,
-#			       filename => [$tarballfile],
-#			       release_immed_date => 'on',]);
-#my $response = $submitter->request($request);
-#die $response->message unless $response->is_success;
-
-
+if ($send_to_geo) {
 #use ftp to send file to geo ftp site
-my $ftp_host = 'ftp-private.ncbi.nlm.nih.gov';
-my $ftp_username = 'geo';
-my $ftp_password = 'do_not_know_yet';
+my $ftp_host = $ini{ftp}{host};
+my $ftp_username = $ini{ftp}{username};
+my $ftp_password = $ini{ftp}{password};
 my $ftp = Net::FTP->new($ftp_host);
 my $success = $ftp->login($ftp_username, $ftp_password);
 die $ftp->message unless $success;
-my $success = $ftp->cwd('raw');
+my $success = $ftp->cwd($ini{ftp}{dir});
 die $ftp->message unless $success;
 my $success = $ftp->put($tarfile);
 die $ftp->message unless $success;
 
 #send geo a email
 my $mailer = Mail::Mailer->new;
-my $submitter = 'modencode';
+my $submitter = $ini{submitter}{submitter};
 $mailer->open({
-    From => 'help@modencode.org',
-    To   => 'geo@ncbi.nlm.nih.gov',
-    CC   => 'zhengzha2000@gmail.com',
+    From => $ini{email}{from},
+    To   => $ini{email}{to},
+    CC   => $ini{email}{cc},
     Subject => 'ftp upload'
 });
 print $mailer "userid: $submitter\n";
 print $mailer "file: $tarfile\n";
 print $mailer "modencode DCC ID for this submission: $unique_id\n";
 print $mailer "Best Regards, modencode DCC\n";
-
-
+}
 
 
 sub nr {
@@ -218,4 +194,13 @@ sub unzipp {
     } else {
 	return ($path, $unzipped);
     }
+}
+
+sub usage {
+    my $usage = qq[$0 -unique_id <unique_submission_id> -out <output_dir> -config <config_file> [-make_tarball <0|1>] [-send_to_geo <0|1>]];
+    print "Usage: $usage\n";
+    print "required parameters: unique_id, out, config\n";
+    print "optional yet helpful parameter: make_tarball, default is 0 for NOT archiving any raw/normalized data.\n";
+    print "optional yet important parameter: send_to_geo, default is 0 for NOT sending crappy results to geo.\n";
+    exit 2;
 }
