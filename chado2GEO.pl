@@ -12,13 +12,11 @@ use Net::FTP;
 use Mail::Mailer;
 use Config::IniFiles;
 use Getopt::Long;
-use ModENCODE::Parser::Chado;
 use GEO::Reporter;
 
 #parse command-line parameters
 my ($unique_id, $output_dir, $config); 
 my $make_tarball = 0; 
-my $tarball_made = 0;
 my $send_to_geo = 0;
 my $option = GetOptions ("unique_id=s"     => \$unique_id,
 			 "out=s"           => \$output_dir,
@@ -38,6 +36,7 @@ my $validator_path = $ini{validator}{validator};
 BEGIN {
     push @INC, $validator_path;
 }
+use ModENCODE::Parser::Chado;
 
 #report directory
 my $report_dir = File::Spec->rel2abs($output_dir);
@@ -86,13 +85,13 @@ print "done with sample\n";
 close $sampleFH;
 close $seriesFH;
 
+my $metafile = $unique_id . ".soft";
+my $tarfile = $unique_id . '.tar';
 if ($make_tarball) {
 my @nr_raw_datafiles = nr(@$raw_datafiles);
 my @nr_normalized_datafiles = nr(@$normalized_datafiles);
 
 #make a tar ball at report_dir for series, sample files and all datafiles
-my $metafile = $unique_id . ".soft";
-my $tarfile = $unique_id . '.tar';
 chdir $report_dir;
 my $dir = dirname($seriesfile);
 my $file1 = basename($seriesfile);
@@ -124,10 +123,9 @@ for my $datafile (@datafiles) {
 move($tarfile, $report_dir);
 chdir $report_dir;
 system('gzip', $tarfile) == 0 || die "can not zip the tar: $?";
-$tarball_made = 1;
 }
 
-if ($tarball_made && $send_to_geo) {
+if ($send_to_geo) {
 #use ftp to send file to geo ftp site
 my $ftp_host = $ini{ftp}{host};
 my $ftp_username = $ini{ftp}{username};
