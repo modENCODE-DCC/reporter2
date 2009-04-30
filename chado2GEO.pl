@@ -71,7 +71,7 @@ $reader->load_experiment($experiment_id);
 my $experiment = $reader->get_experiment();
 print "experiment loaded\n";
 
-my $reporter = new GEO::Reporter();
+my $reporter = new GEO::Reporter({config => \%ini});
 my $seriesfile = $report_dir . $unique_name . '_series.txt';
 my $samplefile = $report_dir . $unique_name . '_sample.txt';
 
