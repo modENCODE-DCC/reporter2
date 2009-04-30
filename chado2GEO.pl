@@ -106,7 +106,7 @@ if ($make_tarball) {
 
     my $url = $ini{tarball}{url};
     $url .= '/' unless $url =~ /\/$/;
-    $url .= $unique_id . '?root=data&structured=false';
+    $url .= $unique_id . $ini{tarball}{condition};
     my @wget = ("wget $url"); #the file will always be extracted.tgz
     system(@wget) == 0 || die "can not fetch data at URL: $url";
     for my $datafile (@datafiles) {
