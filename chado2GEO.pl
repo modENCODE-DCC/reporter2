@@ -85,72 +85,71 @@ print "done with sample\n";
 close $sampleFH;
 close $seriesFH;
 
-my $metafile = $unique_id . ".soft";
-my $tarfile = $unique_id . '.tar';
+my $tarfile = $unique_name . '.tar';
+my $tarballfile = $unique_name . '.tar.gz';
+my $tarball_made = 0;
 if ($make_tarball) {
-my @nr_raw_datafiles = nr(@$raw_datafiles);
-my @nr_normalized_datafiles = nr(@$normalized_datafiles);
+    my @nr_raw_datafiles = nr(@$raw_datafiles);
+    my @nr_normalized_datafiles = nr(@$normalized_datafiles);
+    my @datafiles = (@nr_raw_datafiles, @nr_normalized_datafiles);
+    my $metafile = $unique_name . ".soft";
+    #make a tar ball at report_dir for series, sample files and all datafiles
+    chdir $report_dir;
+    my $dir = dirname($seriesfile);
+    my $file1 = basename($seriesfile);
+    my $file2 = basename($samplefile);
+    my @cat = ("cat $file1 $file2 > $metafile");
+    system(@cat) == 0 || die "can not cat two GEO meta files: $?";
+    my @tar = ('tar', 'cf', $tarfile, $metafile);
+    system(@tar) == 0 || die "can not make tar of two GEO meta files: $?";
+    system("rm $metafile") == 0 || die "can not remove catenated metafile: $?";
 
-#make a tar ball at report_dir for series, sample files and all datafiles
-chdir $report_dir;
-my $dir = dirname($seriesfile);
-my $file1 = basename($seriesfile);
-my $file2 = basename($samplefile);
-my @cat = ("cat $file1 $file2 > $metafile");
-system(@cat) == 0 || die "can not cate: $?";
-my @tar = ('tar', 'cf', $tarfile, $metafile);
-system(@tar) == 0 || die "can not make tar: $?";
-system("rm $metafile") == 0 || die "can not remove metafile: $?";
-my @datafiles = (@nr_raw_datafiles, @nr_normalized_datafiles);
-for my $datafile (@datafiles) {
-    my $path = $report_dir . $datafile;
-    my $dir = dirname($path);
-    my $file = basename($path);
-    my ($unzipped_file, $unzipped) = unzipp($file);
-    move($tarfile, $dir);
-    chdir $dir;
-    my @tar;
-    if ($unzipped) {
-	@tar = ('tar', 'rf', $tarfile, $unzipped_file);
-	system(@tar) == 0 || die "can not make tar: $?";
-	system("rm $unzipped_file") == 0 || die "can not remove unzipped file: $?";
-    } else {
-	@tar = ('tar', 'rf', $tarfile, $file);
-	system(@tar) == 0 || die "can not make tar: $?";
+    my $url = $ini{tarball}{url};
+    $url .= '/' unless $url =~ /\/$/;
+    $url .= $unique_id . '?root=data&structured=false';
+    my @wget = ("wget $url"); #the file will always be extracted.tgz
+    system(@wget) == 0 || die "can not fetch data at URL: $url";
+    for my $datafile (@datafiles) {
+	my $file = basename($datfile);
+	my $clean_file = unzipp($file);
+	my @untar = "tar xzf extracted.tgz $clean_file";
+	system(@untar) == 0 || die "can not extract a datafile $clean_file";
+	my @tar = ("tar -r --remove-files -f $tarfile $clean_file");
+	system(@tar) == 0 || die "can not append a datafile $clean_file to tarball $tarfile and then remove it.";
+	my @rm = ("rm extracted.tgz");
+	system(@rm) == 0 || die "can not remove file extracted.tgz";
     }
-    
-}
-move($tarfile, $report_dir);
-chdir $report_dir;
-system('gzip', $tarfile) == 0 || die "can not zip the tar: $?";
+    my @tarball = ("gzip $tarfile");
+    system(@tarball) == 0 || die "can not gzip the tar file $tarfile";
+    $tarball_made = 1;
 }
 
-if ($send_to_geo) {
-#use ftp to send file to geo ftp site
-my $ftp_host = $ini{ftp}{host};
-my $ftp_username = $ini{ftp}{username};
-my $ftp_password = $ini{ftp}{password};
-my $ftp = Net::FTP->new($ftp_host);
-my $success = $ftp->login($ftp_username, $ftp_password);
-die $ftp->message unless $success;
-my $success = $ftp->cwd($ini{ftp}{dir});
-die $ftp->message unless $success;
-my $success = $ftp->put($tarfile);
-die $ftp->message unless $success;
+if ($tarball_made && $send_to_geo) {
+    #use ftp to send file to geo ftp site
+    my $ftp_host = $ini{ftp}{host};
+    my $ftp_username = $ini{ftp}{username};
+    my $ftp_password = $ini{ftp}{password};
+    my $ftp = Net::FTP->new($ftp_host);
+    my $success = $ftp->login($ftp_username, $ftp_password);
+    die $ftp->message unless $success;
+    my $success = $ftp->cwd($ini{ftp}{dir});
+    die $ftp->message unless $success;
+    my $success = $ftp->put($tarballfile);
+    die $ftp->message unless $success;
 
-#send geo a email
-my $mailer = Mail::Mailer->new;
-my $submitter = $ini{submitter}{submitter};
-$mailer->open({
-    From => $ini{email}{from},
-    To   => $ini{email}{to},
-    CC   => $ini{email}{cc},
-    Subject => 'ftp upload'
-});
-print $mailer "userid: $submitter\n";
-print $mailer "file: $tarfile\n";
-print $mailer "modencode DCC ID for this submission: $unique_id\n";
-print $mailer "Best Regards, modencode DCC\n";
+    #send geo a email
+    my $mailer = Mail::Mailer->new;
+    my $submitter = $ini{submitter}{submitter};
+    $mailer->open({
+	From => $ini{email}{from},
+	To   => $ini{email}{to},
+	CC   => $ini{email}{cc},
+	Subject => 'ftp upload',
+		  });
+    print $mailer "userid: $submitter\n";
+    print $mailer "file: $tarballfile\n";
+    print $mailer "modencode DCC ID for this submission: $unique_id\n";
+    print $mailer "Best Regards, modencode DCC\n";
 }
 
 
@@ -169,31 +168,14 @@ sub nr {
 
 sub unzipp {
     my $path = shift; #this is already a basename
-    #always keep the original file
-    my ($file, $dir, $suffix) = fileparse($path, qr/\.[^.]*/);
-    my $unzipped = 0;
-    if ($suffix eq '.tgz') {#need to ban this suffix for submission to us!!
-	$unzipped = 1;
-    }
-    if ($suffix eq '.bz2') {#use this is good.
-	$unzipped = 1;
-	system("bzip2 -dk $path")	
-    }
-    if ($suffix eq '.zip' || $suffix eq '.ZIP' || $suffix eq '.Z') {
-	$unzipped = 1;
-    }
-    if ($suffix eq '.gz') {
-	$unzipped = 1;
-	#deal with .tar.gz here
-    }
-    if ($suffix eq '.tar') {#need to ban this suffix for submission to us!!
-	$unzipped = 1;
-    }
-    if ($unzipped) {
-	return ($file, $unzipped);
-    } else {
-	return ($path, $unzipped);
-    }
+    $path =~ s/\.tgz$//;
+    $path =~ s/\.tar\.gz$//;    
+    $path =~ s/\.gz$//;    
+    $path =~ s/\.bz2$//;
+    $path =~ s/\.zip$//;
+    $path =~ s/\.ZIP//;
+    $path =~ s/\.Z//;
+    return $path;
 }
 
 sub usage {
