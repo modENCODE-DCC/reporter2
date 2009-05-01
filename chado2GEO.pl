@@ -12,6 +12,15 @@ use Net::FTP;
 use Mail::Mailer;
 use Config::IniFiles;
 use Getopt::Long;
+
+#validator path
+my $validator_path;
+BEGIN {
+    $validator_path = '../validator';
+#    print $validator_path;
+    push @INC, $validator_path;
+}
+use ModENCODE::Parser::Chado;
 use GEO::Reporter;
 
 #parse command-line parameters
@@ -31,12 +40,6 @@ usage() unless -e $config;
 my %ini;
 tie %ini, 'Config::IniFiles', (-file => $config);
 
-#validator path
-my $validator_path = $ini{validator}{validator};
-BEGIN {
-    push @INC, $validator_path;
-}
-use ModENCODE::Parser::Chado;
 
 #report directory
 my $report_dir = File::Spec->rel2abs($output_dir);
@@ -110,7 +113,7 @@ if ($make_tarball) {
     my @wget = ("wget $url"); #the file will always be extracted.tgz
     system(@wget) == 0 || die "can not fetch data at URL: $url";
     for my $datafile (@datafiles) {
-	my $file = basename($datfile);
+	my $file = basename($datafile);
 	my $clean_file = unzipp($file);
 	my @untar = "tar xzf extracted.tgz $clean_file";
 	system(@untar) == 0 || die "can not extract a datafile $clean_file";
