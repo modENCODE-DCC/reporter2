@@ -18,6 +18,18 @@ sub chado2series {
     my ($self, $reader, $experiment, $seriesFH, $unique_id) = @_;
     my $uniquename = $experiment->get_uniquename();
     print $seriesFH "^Series = ", $uniquename, "\n";
+    
+    my %project = {'Lieb' => 'Jason Lieb',
+		   'Celniker' => 'Susan Celniker',
+		   'Henikoff' => 'Steven Henikoff',
+		   'Karpen' => 'Gary Karpen',
+		   'Lai' => 'Eric Lai',
+		   'MacAlpine' => 'David MacAlpine',
+		   'Piano' => 'Fabio Piano',
+		   'Snyder' => 'Michael Snyder',
+		   'Waterston' => 'Robert Waterston',
+		   'White' => 'Kevin White',
+    };
 
     foreach my $property (@{$experiment->get_properties()}) {
 	my ($name, $value, $rank, $type) = ($property->get_name(), 
@@ -25,12 +37,20 @@ sub chado2series {
 					    $property->get_rank(), 
 					    $property->get_type());
 	my $id = substr($unique_id, 10);
-	print $seriesFH "!Series_title = modENCODE ", $id, " ", substr($value, 0, 108-length($id)), "\n" if $name =~ /Investigation\s*Title/i;
-	my $str = 'DATA USE POLICY: This dataset was generated under the auspices of the modENCODE (http://www.modencode.org) project, which has a specific data release policy stating that the data may be used, but not published, until 9 months from the date of public release. If any data used for the analysis are derived from unpublished data prior to the expiration of the nine-month protected period, then the resource users should obtain the consent of respective resource producers prior to submission of a manuscript.';
+	print $seriesFH "!Series_title = modENCODE submission", $id, ",", substr($value, 0, 95-length($id)), "\n" if $name =~ /Investigation\s*Title/i;
+	my $str = ' DATA USE POLICY: This dataset was generated under the auspices of the modENCODE (http://www.modencode.org) project, which has a specific data release policy stating that the data may be used, but not published, until 9 months from the date of public release. If any data used for the analysis are derived from unpublished data prior to the expiration of the nine-month protected period, then the resource users should obtain the consent of respective resource producers prior to submission of a manuscript.';
+	my ($str2, $str3);
+	if ($name =~ /^\s*Project\s*$/) {
+	    $value =~ s/\n//g;
+	    $value =~ s/^\s*//;
+	    $value =~ s/\s*$//;
+	    $str2 = 'This is part of a modENCODE ' . $project{$value} . 'project.', 'For full list of modENCODE projects, see http://www.genome.gov/26524648 ';
+	}
 	if ($name =~ /Experiment\s*Description/i) {
 	    $value =~ s/\n//g;
-	    print $seriesFH "!Series_summary = Project Goal:", $value, $str, "\n" if $name =~ /Experiment\s*Description/i;
+	    $str3 = 'Project Goal: ' . $value;
 	}
+	print $seriesFH "!Series_summary = ", $str2, $str3, $str, "\n";
 	print $seriesFH "!Series_pubmed_id = ", $value, "\n" if $name =~ /Pubmed_id/i;
     }
 
