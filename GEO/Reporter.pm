@@ -6,6 +6,7 @@ use Class::Std;
 use Data::Dumper;
 use File::Basename;
 use URI::Escape;
+use HTML::Entities;
 
 my %config   :ATTR( :name<config>       :default<undef>);
 
@@ -32,15 +33,18 @@ sub chado2series {
 		   'White' => 'Kevin White',
     };
 
+    my $str = ' DATA USE POLICY: This dataset was generated under the auspices of the modENCODE (http://www.modencode.org) project, which has a specific data release policy stating that the data may be used, but not published, until 9 months from the date of public release. If any data used for the analysis are derived from unpublished data prior to the expiration of the nine-month protected period, then the resource users should obtain the consent of respective resource producers prior to submission of a manuscript.';
+    my ($title, $str2, $str3);
+    my @pubmed;
+    my $id = substr($unique_id, 10);
     foreach my $property (@{$experiment->get_properties()}) {
 	my ($name, $value, $rank, $type) = ($property->get_name(), 
-					    $property->get_value(), 
-					    $property->get_rank(), 
+					        $property->get_value(), 
+					        $property->get_rank(), 
 					    $property->get_type());
-	my $id = substr($unique_id, 10);
-	print $seriesFH "!Series_title = modENCODE submission", $id, ",", substr($value, 0, 95-length($id)), "\n" if $name =~ /Investigation\s*Title/i;
-	my $str = ' DATA USE POLICY: This dataset was generated under the auspices of the modENCODE (http://www.modencode.org) project, which has a specific data release policy stating that the data may be used, but not published, until 9 months from the date of public release. If any data used for the analysis are derived from unpublished data prior to the expiration of the nine-month protected period, then the resource users should obtain the consent of respective resource producers prior to submission of a manuscript.';
-	my ($str2, $str3);
+	
+	$title = $value if $name =~ /Investigation\s*Title/i;
+
 	if ($name =~ /^\s*Project\s*$/) {
 	    $value =~ s/\n//g;
 	    $value =~ s/^\s*//;
@@ -51,12 +55,19 @@ sub chado2series {
 	    $value =~ s/\n//g;
 	    $str3 = 'Project Goal: ' . $value;
 	}
-	print $seriesFH "!Series_summary = ", $str2, $str3, $str, "\n";
-	print $seriesFH "!Series_pubmed_id = ", $value, "\n" if $name =~ /Pubmed_id/i;
+	push @pubmed, $value if $name =~ /Pubmed_id/i;
     }
 
-#    my $design = $self->get_design($experiment);
-#    $self->write_series_overall_design($reader, $experiment, $seriesFH);
+    print $seriesFH "!Series_title = modENCODE submission", $id, substr($title, 0, 95-length($id)), "\n";
+    for my $summary (($str2, $str3, $str)) {
+	print $seriesFH "!Series_summary = ", $summary, "\n";
+    }    
+    if (scalar @pubmed) {
+	for my $pubmed_id (@pubmed) {
+	    print $seriesFH "!Series_pubmed_id = ", $pubmed_id, "\n";
+	}
+    }
+    $self->write_series_overall_design($reader, $experiment, $seriesFH);
     $self->write_series_type($experiment, $seriesFH);
     print $seriesFH "!Series_web_link = http://www.modencode.org\n";
     $self->write_contributors($experiment, $seriesFH);
@@ -723,7 +734,7 @@ sub get_biological_source {
     my ($self, $denorm_slots, $ap_slots) = @_;
     #use row 0, a little bit risky
     my $extraction_slot = $ap_slots->{'extraction'};
-    my @str = $self->get_biological_source_row($denorm_slots, $ap_slots, 0);
+    my @str = $self->get_biological_source_row($denorm_slots, $extraction_slot, 0);
     return @str;
 }
 
@@ -841,7 +852,6 @@ sub get_protocol_text {
     my ($self, $ap) = @_;
     my $protocol = $ap->get_protocol();
     #use short description
-    require HTML::Entities;
     if (my $txt = $protocol->get_description()) {
 	return decode_entities($txt);
     } else {
