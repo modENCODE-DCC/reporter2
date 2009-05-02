@@ -12,14 +12,7 @@ use Net::FTP;
 use Mail::Mailer;
 use Config::IniFiles;
 use Getopt::Long;
-
-#validator path
-my $validator_path;
-BEGIN {
-    $validator_path = '../validator';
-#    print $validator_path;
-    push @INC, $validator_path;
-}
+use lib '/home/zheng/validator';
 use ModENCODE::Parser::Chado;
 use GEO::Reporter;
 
@@ -186,6 +179,6 @@ sub usage {
     print "Usage: $usage\n";
     print "required parameters: unique_id, out, config\n";
     print "optional yet helpful parameter: make_tarball, default is 0 for NOT archiving any raw/normalized data.\n";
-    print "optional yet important parameter: send_to_geo, default is 0 for NOT sending crappy results to geo.\n";
+    print "optional yet important parameter: send_to_geo, default is 0 for NOT sending crappy results to geo. must set both make_tarball and send_to_geo to 1 for sending submission to geo happen.\n";
     exit 2;
 }
