@@ -5,6 +5,7 @@ use Carp;
 use Class::Std;
 use Data::Dumper;
 use File::Basename;
+use URI::Escape;
 
 my %config   :ATTR( :name<config>       :default<undef>);
 
@@ -166,7 +167,7 @@ sub write_contributors {
 	print $seriesFH "!Series_contributor = ", $str, "\n";
     }
 
-    print $seriesFH "!Series_contributor = ", "DCC, modENCODE\n";
+#    print $seriesFH "!Series_contributor = ", "DCC, modENCODE\n";
 
 #    my $person = $contact{$project};
 #    my $str;
@@ -236,30 +237,32 @@ sub write_series_overall_design {
     my ($self, $reader, $experiment, $seriesFH) = @_;
     my $str = '';
     my $design = $self->get_design($experiment);
-    foreach my $k (sort keys %$design) {
+#    foreach my $k (sort keys %$design) {
 #	$str .= "Ontology:" . $design->{$k}->[1] . " accession:" . $design->{$k}->[2] if defined($design->{$k}->[1]);
-	$str .= $design->{$k}->[1] if defined($design->{$k}->[1]);
-	$str .= "DESIGN ONTOLOGY: MO::$design->{$k}->[0]";
-	$str .= ", ";
-    }
+#	$str .= $design->{$k}->[1] if defined($design->{$k}->[1]);
+#	$str .= "DESIGN ONTOLOGY: MO::$design->{$k}->[0]";
+#	$str .= ", ";
+#    }
     $str .= 'EXPERIMENT TYPE: ' . $self->get_series_type($experiment) . ", ";
     my $ap_slots = $self->get_slotnum_for_geo_sample($experiment, 'group');
     my $denorm_slots = $reader->get_denormalized_protocol_slots();
-    $str .= 'BIOLOGICAL SOURCE: ' . $self->get_biological_source($denorm_slots, $ap_slots);
+    my @biological_source = $self->get_biological_source($denorm_slots, $ap_slots);
+    my $biological_source = join(";", @biological_source);
+    $str .= 'BIOLOGICAL SOURCE: ' . $biological_source;
     my $grps = $self->get_groups($ap_slots, $denorm_slots);
 
     my $num_of_grps = keys %$grps;
-    $str .= "REPLICATES: " . $num_of_grps . ", ";
+    $str .= "NUMBER OF REPLICATES: " . $num_of_grps . ", ";
     my $dye_swap_status_written = 0;
     for (my $extraction=0; $extraction<$num_of_grps; $extraction++) {
 	my $num_of_array = keys %{$grps->{$extraction}};
-	$str .= "replicate $extraction applied to $num_of_array arrays, ";
+	$str .= "replicate $extraction+1 applied to $num_of_array arrays, ";
 	for (my $array=0; $array<$num_of_array; $array++) {
 	    for (my $channel=0; $channel<scalar(@{$grps->{$extraction}->{$array}}); $channel++) {
 		my $row = $grps->{$extraction}->{$array}->[$channel];
 		if ($self->get_dye_swap_status($denorm_slots, $row, $channel, $ap_slots) eq 'dye swap') {
 		    my $sample_id = $self->get_sample_id($denorm_slots, $extraction, $array, $row, $ap_slots);
-		    $str .= "replicate $extraction array $array (sample id: $sample_id) is dye swap, ";
+		    $str .= "replicate $extraction+1 array $array (sample id: $sample_id) is dye swap, ";
 		    $dye_swap_status_written = 1;
 		}
 	    }
@@ -271,7 +274,11 @@ sub write_series_overall_design {
     my $factors = $self->get_factor($experiment);
     $str .= "EXPERIMENTAL FACTORS: ";
     for my $rank (keys %$factors) {
-	$str .= $factors->{$rank}->[0];
+	my $factor = $factors->{$rank}->[0];
+	my $simple;
+	if ($factor =~ /A[Bb]:(.*):/) {$simple = $1;}
+	else {$simple = $factor . ', see above';}
+	$str .= $simple;
     }
     
     print $seriesFH "!Series_overall_design = ", $str, "\n";     
@@ -360,8 +367,6 @@ sub get_groups {
     }
     return \%combine_grp;
 }
-
-
 
 sub chado2sample {
     my ($self, $reader, $experiment, $seriesFH, $sampleFH, $report_dir) = @_;
@@ -504,8 +509,6 @@ sub write_sample_source {
     print $sampleFH "!Sample_organism_ch$ch = $organism_name[0]\n",
 }
 
-
-
 sub get_dye_swap_status {
     #this function only works for CHIP
     my ($self, $denorm_slots, $row, $channel, $ap_slots) = @_;
@@ -530,20 +533,20 @@ sub write_sample_description {
 	for my $antibody (@$antibodies) {
 	    my $str = "!Sample_description = ";
 	    if ($antibody->get_value()) {
-		$str .= "channel ch$ch is ChIP channel; ";
+		$str .= "channel ch$ch is ChIP DNA; Antibody information listed below:";
 		for my $attr (@{$antibody->get_attributes()}) {
 		    my ($name, $heading, $value) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
 		    $str .= "$heading";
 		    $str .= "[$name] " if $name;
-		    if ($attr->get_termsource()) {
-			$str .= $attr->get_termsource()->get_db()->get_name() . "::";
+		    #if ($attr->get_termsource()) {
+			#$str .= $attr->get_termsource()->get_db()->get_name() . "::";
 			#$str .= $attr->get_termsource()->get_db()->get_name() . "|" . $attr->get_termsource()->get_accession();
-		    }
+		    #}
 		    $str .= ": $value; ";		
 		}
 	    }
 	    else {
-		$str .= "channel ch$ch is control channel;"
+		$str .= "channel ch$ch is input DNA;"
 	    }
 	    print $sampleFH $str, "\n";
 	}
@@ -552,12 +555,12 @@ sub write_sample_description {
 
 sub write_characteristics {
     my ($self, $denorm_slots, $row, $channel, $ap_slots, $sampleFH) = @_;
-    #use Characteristics columns
-    #or search Parameter Value columns which has attributes, 
-    #for both extraction ap and any ap before it
-    for (my $i=0; $i<=$ap_slots->{'extraction'}; $i++) {
-	my $ap = $denorm_slots->[$i]->[$row];
-	$self->ap_write_characteristics($ap, $channel, $sampleFH);
+    #for extraction ap and any ap before it
+    my $extraction_slot = $ap_slots->{'extraction'};
+    my $ch = $channel+1;
+    for my $bio_str ($self->get_biological_source_row($denorm_slots, $extraction_slot, $row)) {
+	my $str = "!Sample_characteristics_ch$ch = " . $bio_str;
+	print $sampleFH $str , "\n";
     }
 }
 
@@ -581,42 +584,148 @@ sub ap_write_characteristics {
     }
 }
 
-sub get_biological_source {#cell line, strain, tissue,
-    my ($self, $denorm_slots, $ap_slots) = @_;
-    my $str = '';
-    #my $str = 'BIOLOGICAL SOURCE: ';
-    for (my $i=0; $i<=$ap_slots->{'extraction'}; $i++) {
-	my $ap = $denorm_slots->[$i]->[0];
+sub get_strain {
+    my ($self, $denorm_slots, $extraction_slot, $row) = @_;
+    for (my $i=0; $i<=$extraction_slot; $i++) {
+	my $ap = $denorm_slots->[$i]->[$row];
 	for my $datum (@{$ap->get_input_data()}) {
-	    #my ($dname, $dheading, $dvalue) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
+	    my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
+	    if (lc($name) =~ /^\s*strain\s*$/) {
+		$value =~ /[Ss]train:(.*)&/;
+		return uri_unescape($1);
+	    }
 	    for my $attr (@{$datum->get_attributes()}) {
 		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
-		#print $aname, ":", $aheading, ":", $avalue, "\n";
-		if (lc($aheading) =~ /official\s*name/) {
-		    #$str .= $dname . ":", $avalue . ", ";
-		    $str .= 'official name:' . "$avalue" . ", ";
-		}
-		if (lc($aname) =~ /strain/) {#this is internal name
-		    #$str .= $dname . ":", $avalue . ", ";
-		    $str .= 'strain official name:' . $avalue . ", ";
+		if (lc($aname) =~ /^\s*strain\s*$/) {
+		    $value =~ /[Ss]train:(.*)&/;
+		    return uri_unescape($1);		    
 		}		
-		if (lc($aheading) =~ /strain/) {#this is internal name
-		    #$str .= $dname . ":", $avalue . ", ";
-		    $str .= 'strain name from lab:' . $avalue . ", ";
-		}
-		if (lc($aheading) =~ /genotype/) {
-		    $str .= $aheading . ":" . $avalue . ", ";
-		}
-		if ((lc($aname) =~ /developmental\s*stage/) || (lc($aheading) =~ /developmental\s*stage/)) {
-		    $str .= 'developmental stage' . ":" . $avalue . ", ";
+	    }
+	}
+    }
+    return undef;
+}
+
+sub get_cellline {
+    my ($self, $denorm_slots, $extraction_slot, $row) = @_;
+    for (my $i=0; $i<=$extraction_slot; $i++) {
+	my $ap = $denorm_slots->[$i]->[$row];
+	for my $datum (@{$ap->get_input_data()}) {
+	    my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
+	    if (lc($name) =~ /^\s*cell\s*line\s*$/) {
+		$value =~ /[Cc]ell[Ll]ine:(.*)&/;
+		return uri_unescape($1);
+	    }
+	    for my $attr (@{$datum->get_attributes()}) {
+		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
+		if (lc($aname) =~ /^\s*cell\s*line\s*$/) {
+		    $value =~ /[Cc]ell[Ll]ine:(.*)&/;
+		    return uri_unescape($1);		    
+		}		
+	    }
+	}
+    }
+    return undef;
+}
+
+sub get_devstage {
+    my ($self, $denorm_slots, $extraction_slot, $row) = @_;
+    for (my $i=0; $i<=$extraction_slot; $i++) {
+	my $ap = $denorm_slots->[$i]->[$row];
+	for my $datum (@{$ap->get_input_data()}) {
+	    my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
+	    if (lc($name) =~ /^\s*devstage\s*$/) {
+		$value =~ /[Dd]ev[Ss]tage:(.*)&/;
+		return uri_unescape($1);
+	    }
+	    for my $attr (@{$datum->get_attributes()}) {
+		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
+		if (lc($aname) =~ /^\s*dev.*stage\s*$/) {
+		    if ( $value =~ /[Dd]ev[Ss]tage:(.*)&/ ) {
+			return uri_unescape($1);
+		    } else { 
+			return uri_unescape($value);
+		    }
+		}		
+	    }
+	}
+    }
+    return undef;
+}
+
+sub get_genotype {
+    my ($self, $denorm_slots, $extraction_slot, $row) = @_;
+    for (my $i=0; $i<=$extraction_slot; $i++) {
+	my $ap = $denorm_slots->[$i]->[$row];
+	for my $datum (@{$ap->get_input_data()}) {
+	    for my $attr (@{$datum->get_attributes()}) {
+		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
+		if (lc($aheading) =~ /^\s*genotype\s*$/) {
+		    return uri_unescape($avalue);
 		}
 	    }
 	}
     }
-    return $str;
+    return undef;
 }
 
+sub get_celltype {
+    my ($self, $denorm_slots, $extraction_slot, $row) = @_;
+    for (my $i=0; $i<=$extraction_slot; $i++) {
+	my $ap = $denorm_slots->[$i]->[$row];
+	for my $datum (@{$ap->get_input_data()}) {
+	    for my $attr (@{$datum->get_attributes()}) {
+		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
+		if (lc($aheading) =~ /^\s*cell\s*type\s*$/) {
+		    return uri_unescape($avalue);
+		}
+	    }
+	}
+    }
+    return undef;
+}
 
+sub get_sex {
+    my ($self, $denorm_slots, $extraction_slot, $row) = @_;
+    for (my $i=0; $i<=$extraction_slot; $i++) {
+	my $ap = $denorm_slots->[$i]->[$row];
+	for my $datum (@{$ap->get_input_data()}) {
+	    for my $attr (@{$datum->get_attributes()}) {
+		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
+		if (lc($aheading) =~ /^\s*sex\s*$/) {
+		    return uri_unescape($avalue);
+		}
+	    }
+	}
+    }
+    return undef;
+}
+
+sub get_biological_source_row {#cell line, strain, tissue,
+    my ($self, $denorm_slots, $extraction_slot, $row) = @_;
+    my @str = ();
+    my $strain = $self->get_strain($denorm_slots, $extraction_slot, $row);
+    my $cellline = $self->get_cellline($denorm_slots, $extraction_slot, $row);
+    my $devstage = $self->get_devstage($denorm_slots, $extraction_slot, $row);
+    my $genotype = $self->get_genotype($denorm_slots, $extraction_slot, $row);
+    my $celltype = $self->get_celltype($denorm_slots, $extraction_slot, $row);
+    my $sex = $self->get_sex($denorm_slots, $extraction_slot, $row);
+    push @str, "Strain: $strain" if $strain;
+    push @str, "Cell Line: $cellline" if $cellline;
+    push @str, "Developmental Stage: $devstage\n" if $devstage;
+    push @str, "Genotype: $genotype\n" if $genotype;
+    push @str, "Cell Type: $celltype\n" if $celltype;
+    push @str, "Sex: $sex\n" if $sex;    
+    return @str;
+}
+
+sub get_biological_source {
+    my ($self, $denorm_slots, $ap_slots) = @_;
+    #use row 0, a little bit risky
+    my $extraction_slot = $ap_slots->{'extraction'};
+    my @str = $self->get_biological_source_row($denorm_slots, $ap_slots, 0);
+    return @str;
+}
 
 sub write_sample_growth {
     #all protocols before extractions
@@ -653,15 +762,15 @@ sub write_sample_extraction {
     }
     croak("is the type of molecule extracted dna, total_rna, nucleic rna, ...?") unless $molecule;
     print $sampleFH "!Sample_molecule_ch$ch = ", $molecule, "\n";
-
     
     for (my $i=$ap_slots->{'extraction'}; $i<$ap_slots->{'labeling'}; $i++) {
 	my $ap = $denorm_slots->[$i]->[$row];
 	my $protocol_text = $self->get_protocol_text($ap);
 	$protocol_text =~ s/\n//g; #one line
 	print $sampleFH "!Sample_extract_protocol_ch$ch = ", $protocol_text, "\n";
-	#$self->ap_write_characteristics($ap, $channel, $sampleFH); 
     }
+    
+    my @str = $self->get_biological_source_row($denorm_slots);
     for (my $i=$ap_slots->{'extraction'}+1; $i<$ap_slots->{'labeling'}; $i++) {
 	my $ap = $denorm_slots->[$i]->[$row];
 	$self->ap_write_characteristics($ap, $channel, $sampleFH);
@@ -712,9 +821,9 @@ sub write_sample_normalization {
 	my $ap = $denorm_slots->[$i]->[$row];
 	my $protocol_text = $self->get_protocol_text($ap);
 	$protocol_text =~ s/\n//g; #one line
-	print $sampleFH $protocol_text, " _end of protocol text_ ";
+	print $sampleFH $protocol_text, " Processed data are obtained using following parameters";
 	for my $datum (@{$ap->get_input_data()}) {
-	    print $sampleFH "parameter: ", $datum->get_name(), " is ", $datum->get_value(), "   " if $datum->get_heading() =~ /Parameter/i;
+	    print $sampleFH $datum->get_name(), " is ", $datum->get_value(), "   " if $datum->get_heading() =~ /Parameter/i;
 	}	
     }
     print $sampleFH "\n";
@@ -732,11 +841,12 @@ sub get_protocol_text {
     my ($self, $ap) = @_;
     my $protocol = $ap->get_protocol();
     #use short description
+    require HTML::Entities;
     if (my $txt = $protocol->get_description()) {
-	return $txt;
+	return decode_entities($txt);
     } else {
 	my @url = map {$_->get_value()} @{_get_attr_by_info($protocol, 'heading', 'Protocol\s*URL')};
-	return $self->_get_full_protocol_text($url[0]);
+	return decode_entities($self->_get_full_protocol_text($url[0]));
     }
 }
 
