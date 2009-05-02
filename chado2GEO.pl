@@ -9,10 +9,10 @@ use File::Basename;
 use File::Copy;
 use File::Spec;
 use Net::FTP;
-use Mail::Mailer;
+#use Mail::Mailer;
 use Config::IniFiles;
 use Getopt::Long;
-use lib '/home/zheng/validator';
+use lib '/users/zhengz/validator';
 use ModENCODE::Parser::Chado;
 use GEO::Reporter;
 
@@ -40,19 +40,14 @@ my $report_dir = File::Spec->rel2abs($output_dir);
 $report_dir .= '/' unless $report_dir =~ /\/$/;
 
 #what is the database for this dataset?
-my $dbname = $ini{database}{name};
+my $dbname = $ini{database}{dbname};
 my $dbhost = $ini{database}{host};
 my $dbusername = $ini{database}{username};
 my $dbpassword = $ini{database}{password};
 #search path for this dataset, this is fixed by modencode chado db
-my $search_path = $dbname . "_" . $unique_id . "_data";
-
+my $schema = $ini{database}{pathprefix}. $unique_id . $ini{database}{pathsuffix} . ',' . $ini{database}{schema};
 #build the uniquename for this dataset
 my $unique_name = 'modencode_' . $unique_id;
-
-#experiment_id is the serial number in chado experiment table
-#one data one database, so experiment_id is always 1
-my $experiment_id = '1';
 
 #start read chado
 my $reader = new ModENCODE::Parser::Chado({
@@ -60,9 +55,8 @@ my $reader = new ModENCODE::Parser::Chado({
 	'host' => $dbhost,
 	'username' => $dbusername,
 	'password' => $dbpassword,
-	'search_path' => $search_path
    });
-
+my $experiment_id = $reader->set_schema($schema);
 $reader->load_experiment($experiment_id);
 my $experiment = $reader->get_experiment();
 print "experiment loaded\n";
@@ -134,18 +128,18 @@ if ($tarball_made && $send_to_geo) {
     die $ftp->message unless $success;
 
     #send geo a email
-    my $mailer = Mail::Mailer->new;
-    my $submitter = $ini{submitter}{submitter};
-    $mailer->open({
-	From => $ini{email}{from},
-	To   => $ini{email}{to},
-	CC   => $ini{email}{cc},
-	Subject => 'ftp upload',
-		  });
-    print $mailer "userid: $submitter\n";
-    print $mailer "file: $tarballfile\n";
-    print $mailer "modencode DCC ID for this submission: $unique_id\n";
-    print $mailer "Best Regards, modencode DCC\n";
+#    my $mailer = Mail::Mailer->new;
+#    my $submitter = $ini{submitter}{submitter};
+#    $mailer->open({
+#	From => $ini{email}{from},
+#	To   => $ini{email}{to},
+#	CC   => $ini{email}{cc},
+#	Subject => 'ftp upload',
+#		  });
+#    print $mailer "userid: $submitter\n";
+#    print $mailer "file: $tarballfile\n";
+#    print $mailer "modencode DCC ID for this submission: $unique_id\n";
+#    print $mailer "Best Regards, modencode DCC\n";
 }
 
 
