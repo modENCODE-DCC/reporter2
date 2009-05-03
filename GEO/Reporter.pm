@@ -261,7 +261,6 @@ sub write_series_overall_design {
     my $biological_source = join("; ", @biological_source);
     $str .= 'BIOLOGICAL SOURCE: ' . $biological_source;
     my $grps = $self->get_groups($ap_slots, $denorm_slots);
-
     my $num_of_grps = keys %$grps;
     $str .= "; NUMBER OF REPLICATES: " . $num_of_grps . ", ";
     my $dye_swap_status_written = 0;
@@ -272,16 +271,22 @@ sub write_series_overall_design {
 	for (my $array=0; $array<$num_of_array; $array++) {
 	    for (my $channel=0; $channel<scalar(@{$grps->{$extraction}->{$array}}); $channel++) {
 		my $row = $grps->{$extraction}->{$array}->[$channel];
-		if ($self->get_dye_swap_status($denorm_slots, $row, $channel, $ap_slots) eq 'dye swap') {
+		my $status = $self->get_dye_swap_status($denorm_slots, $row, $channel, $ap_slots);
+		if ($status eq 'dye swap') {
 		    my $sample_id = $self->get_sample_id($denorm_slots, $extraction, $array, $row, $ap_slots);
 		    $str .= "replicate $extra array $array (sample id: $sample_id) is dye swap; ";
 		    $dye_swap_status_written = 1;
+		} elsif ($status eq 'NA') {
+		    $dye_swap_status_written = 2;
 		}
 	    }
 	}
     }
-    if (not $dye_swap_status_written) {
-	$str .= 'NO dye swap; ';
+    if ($dye_swap_status_written == 0) {
+	$str .= 'NO dye swap status; ';
+    }
+    if ($dye_swap_status_written == 2) {
+        $str .= 'unknown dye swap status; ';
     }
     my $factors = $self->get_factor($experiment);
     $str .= "EXPERIMENTAL FACTORS: ";
@@ -334,32 +339,16 @@ sub write_series_type {
     print $seriesFH "!Series_type = ", $self->get_series_type($experiment), "\n";
 }
 
-#sub write_series_type {
-#    my ($self, $experiment, $seriesFH) = @_;
-#    my $ap_slots = $self->get_slotnum_for_geo_sample($experiment);
-#    my $design = $self->get_design($experiment);
-#
-#    my $written = 0;
-#    print $seriesFH "!Series_type = ", "ChIP-chip\n" and $written = 1 if $ap_slots->{'immunoprecipitation'};
-#    print $seriesFH "!Series_type = ", "FAIRE-chip\n" and $written = 1 if $ap_slots->{'faire'};
-#    for my $d (values %$design) {
-#	if ($d =~ /transcript/i) {
-#	    print $seriesFH "!Series_type = ", "transcription tiling array analysis\n"; 
-#	    $written = 1 and last;
-#	}
-#    }
-#    print $seriesFH "!Series_type = ", "tiling array analysis\n" unless $written;
-#}
-
 sub get_groups {
     my ($self, $ap_slots, $denorm_slots) = @_;
-    #my $ap_slots = $self->get_slotnum_for_geo_sample($experiment);
-    #my $denorm_slots = $reader->get_denormalized_protocol_slots();
 
     #non-redundant grp by extraction, arrayref; all row grped by extraction, hashref
     my ($nr_grp, $all_grp) = $self->group_applied_protocols($denorm_slots->[$ap_slots->{'extraction'}], 1);
-    my $all_grp_by_array = $self->group_applied_protocols_by_data($denorm_slots->[$ap_slots->{'hybridization'}],
-								  'input', 'name', '\s*array\s*');
+    my $all_grp_by_array;
+    my $ok = eval {$all_grp_by_array = $self->group_applied_protocols_by_data($denorm_slots->[$ap_slots->{'hybridization'}],
+								     'input', 'name', '\s*array\s*')};
+    $all_grp_by_array = $self->group_applied_protocols_by_data($denorm_slots->[$ap_slots->{'hybridization'}],
+							       'input', 'name', 'adf') unless $ok;
     my %combine_grp = ();
     while (my ($row, $extract_grp) = each %$all_grp) {
 	my $array_grp = $all_grp_by_array->{$row};
@@ -388,36 +377,9 @@ sub chado2sample {
 
     #get the more-than-applied-protocols matrix    
     my $denorm_slots = $reader->get_denormalized_protocol_slots();
-#    my $denorm_slots = $reader->get_full_denormalized_protocol_slots();
     
     #sort out how many samples in this experiment. for GEO, one sample is defined by one array instance. 
     #this is done by grouping hybridization protocols first by extraction and then by array.
-#    my ($nr_grp, $all_grp) = $self->group_applied_protocols($denorm_slots->[$ap_slots->{'extraction'}], 1);
-
-#    my ($nr_grp, $all_grp) = $self->group_applied_protocols_fast($denorm_slots->[$ap_slots->{'extraction'}], 1);
-#    my $all_grp_by_array = $self->group_applied_protocols_by_data($denorm_slots->[$ap_slots->{'hybridization'}],
-#								  'input', 'name', '\s*array\s*');
-#    my $all_grp_by_array = $self->group_applied_protocols_by_data_fast($denorm_slots->[$ap_slots->{'hybridization'}],
-#								       'input', 'name', '\s*array\s*');
-
-#    my %combine_grp = ();
-#    while (my ($row, $extract_grp) = each %$all_grp) {
-#	my $array_grp = $all_grp_by_array->{$row};
-#	if (exists $combine_grp{$extract_grp}{$array_grp}) {
-#	    my $this_extract_ap = $denorm_slots->[$ap_slots->{'extraction'}]->[$row];
-#	    my $this_hyb_ap = $denorm_slots->[$ap_slots->{'hybridization'}]->[$row];
-#	    my $ignore = 0;
-#	    for my $that_row (@{$combine_grp{$extract_grp}{$array_grp}}) {
-#		my $that_extract_ap = $denorm_slots->[$ap_slots->{'extraction'}]->[$that_row];
-#		my $that_hyb_ap = $denorm_slots->[$ap_slots->{'hybridization'}]->[$that_row];
-#		$ignore = 1 and last if ($this_extract_ap->equals($that_extract_ap) && $this_hyb_ap->equals($that_hyb_ap));
-#	    }
-#	    push @{$combine_grp{$extract_grp}{$array_grp}}, $row unless $ignore;
-#	} else {
-#	    $combine_grp{$extract_grp}{$array_grp} = [$row]; 
-#	}
-#    }
-
     my %combine_grp = %{$self->get_groups($ap_slots, $denorm_slots)};
     my $most_complex_extraction_ap_slot = $ap_slots->{'extraction'};
     my @raw_datafiles;
@@ -464,8 +426,9 @@ sub chado2sample {
 sub get_sample_id {
     my ($self, $denorm_slots, $extraction, $array, $row, $ap_slots) = @_;
     my $hyb_ap = $denorm_slots->[$ap_slots->{'hybridization'}]->[$row];
-    my @hyb_names = map {$_->get_value()} @{_get_datum_by_info($hyb_ap, 'input', 'heading', 'Hybridization\s*Name')};
-    if (scalar(@hyb_names)) {
+    my @hyb_names;
+    my $ok = eval { @hyb_names = map {$_->get_value()} @{_get_datum_by_info($hyb_ap, 'input', 'heading', 'Hybridization\s*Name')} };
+    if ($ok) {
 	return $hyb_names[0];
     } else {
 	return "extraction" . $extraction . "_" . "array" . $array;
@@ -478,6 +441,7 @@ sub write_series_sample {#improvement: generate more meaning sample title using 
     print $seriesFH "!Series_sample_id = GSM for ", $name, "\n";
     print $sampleFH "^Sample = GSM for ", $name, "\n";
     print $sampleFH "!Sample_title = ", $name, "\n";
+#Unfortunately, in some submissions, hybridization names are the same where they should be different
 #    #use hybridization name if possible
 #    my $hyb_ap = $denorm_slots->[$ap_slots->{'hybridization'}]->[$row];
 #    my @hyb_names = map {$_->get_value()} @{_get_datum_by_info($hyb_ap, 'input', 'heading', 'Hybridization\s*Name')};
@@ -497,20 +461,23 @@ sub write_sample_source {
     my ($self, $denorm_slots, $row, $channel, $ap_slots, $sampleFH) = @_;
     #use Sample name if exists, otherwise use Source name if exists, if none of them, auto-generate.
     my $extract_ap = $denorm_slots->[$ap_slots->{'extraction'}]->[$row];
-    my $sample_data = _get_datum_by_info($extract_ap, 'input', 'heading', 'Sample\s*Name');
-    my $ch=$channel+1;    
-    if (scalar(@$sample_data) == 0) {
-        $sample_data = _get_datum_by_info($extract_ap, 'output', 'heading', 'Result');
+    my $sample_data;
+    my $ok1 = eval { $sample_data = _get_datum_by_info($extract_ap, 'input', 'heading', 'Sample\s*Name') } ;
+    my $ch=$channel+1;
+    my $ok2;
+    if (not $ok1) {
+        $ok2 = eval {$sample_data = _get_datum_by_info($extract_ap, 'output', 'heading', 'Result') };
     }
-    if (scalar(@$sample_data)) {
+    if ($ok1 || $ok2) {
         my @sample_names = map {$_->get_value()} @$sample_data;
         print $sampleFH "!Sample_source_name_ch$ch = ", $sample_names[0], " channel_$ch\n";
     }
     else {
         #use the first protocol to generate source name
         my $source_ap = $denorm_slots->[0]->[$row];
-        my $source_data = _get_datum_by_info($source_ap, 'input', 'heading', 'Source\s*Name');
-        if (scalar(@$source_data)) {
+        my $source_data;
+	my $ok3 = eval { _get_datum_by_info($source_ap, 'input', 'heading', 'Source\s*Name') };
+        if ($ok3) {
             my @source_names = map {$_->get_value()} @$source_data;
             print $sampleFH "!Sample_source_name_ch$ch = ", $source_names[0], " channel_$ch\n";
         } else {#autogenerate
@@ -526,22 +493,29 @@ sub get_dye_swap_status {
     my ($self, $denorm_slots, $row, $channel, $ap_slots) = @_;
     return "NA" unless $ap_slots->{'immunoprecipitation'}; 
     my $ip_ap = $denorm_slots->[$ap_slots->{'immunoprecipitation'}]->[$row];
-    my $antibodies = _get_datum_by_info($ip_ap, 'input', 'name', 'antibody');
-    my $antibody = $antibodies->[0];
-    my $label_ap = $denorm_slots->[$ap_slots->{'labeling'}]->[$row];
-    my $labels = _get_datum_by_info($label_ap, 'input', 'name', 'label');
-    my $label = $labels->[0];
-    if ($antibody->get_value() && lc($label->get_value()) =~ /cy3/) {
-	return 'dye swap';
-    }
+    my $antibodies;
+    my $ok = eval {$antibodies = _get_datum_by_info($ip_ap, 'input', 'name', 'antibody')};
+    if ($ok) {
+	my $antibody = $antibodies->[0];
+	my $label_ap = $denorm_slots->[$ap_slots->{'labeling'}]->[$row];
+	my $labels = _get_datum_by_info($label_ap, 'input', 'name', 'label');
+	my $label = $labels->[0];
+	if ($antibody->get_value() && lc($label->get_value()) =~ /cy3/) {
+	    return 'dye swap';
+	} else {
+	    return "NO";
+	}
+    } 
+    return "NA";
 }
 
 sub write_sample_description {
     my ($self, $denorm_slots, $row, $channel, $ap_slots, $sampleFH) = @_;
     my $ip_ap = $denorm_slots->[$ap_slots->{'immunoprecipitation'}]->[$row];
-    my $antibodies = _get_datum_by_info($ip_ap, 'input', 'name', 'antibody');
+    my $antibodies;
+    my $ok = eval { _get_datum_by_info($ip_ap, 'input', 'name', 'antibody') };
     my $ch=$channel+1;
-    if (scalar(@$antibodies)) {
+    if ($ok) {
 	for my $antibody (@$antibodies) {
 	    my $str = "!Sample_description = ";
 	    if ($antibody->get_value()) {
@@ -911,14 +885,20 @@ sub _get_full_protocol_text {
 sub get_array {
     my ($self, $denorm_slots, $row, $ap_slots) = @_;
     my $hyb_ap = $denorm_slots->[$ap_slots->{'hybridization'}]->[$row];
-    my $array = _get_datum_by_info($hyb_ap, 'input', 'heading', 'ArrayDesign\s*REF');
-    if (scalar(@$array) == 0) {
-        $array = _get_datum_by_info($hyb_ap, 'input', 'name', 'array');
+    my $array;
+    my $ok1 = eval { $array = _get_datum_by_info($hyb_ap, 'input', 'name', '\s*array\s*') } ;
+    if (not $ok1) {
+        $array = _get_datum_by_info($hyb_ap, 'input', 'name', '\s*adf\s*');
     }
     my $gpl;
     if (scalar(@$array)) {
-	my $attr = _get_attr_by_info($array->[0], 'heading', '\s*adf\s*');
-	$gpl = $1 if $attr->[0]->get_value() =~ /(GPL\d*)\s*$/;
+	my $attr;
+	my $ok2 = eval { $attr = _get_attr_by_info($array->[0], 'heading', '\s*adf\s*') } ;
+	if ($ok2) {
+	    $gpl = $1 if $attr->[0]->get_value() =~ /(GPL\d*)\s*$/;
+	} else {
+	    croak("can not find the array dbfield heading adf, probably dbfields did not populate correctly.");
+	}
     }
     if ($gpl eq '') {croak("can not find the array GPL number\n");};
     return $gpl;
@@ -926,16 +906,6 @@ sub get_array {
 
 sub write_platform {
     my ($self, $denorm_slots, $row, $ap_slots, $sampleFH) = @_;
-#    my $hyb_ap = $denorm_slots->[$ap_slots->{'hybridization'}]->[$row];
-#    my $array = _get_datum_by_info($hyb_ap, 'input', 'heading', 'ArrayDesign\s*REF');
-#    if (scalar(@$array) == 0) {
-#        $array = _get_datum_by_info($hyb_ap, 'input', 'name', 'array');
-#    }
-#    my $gpl;
-#    if (scalar(@$array)) {
-#	my $attr = _get_attr_by_info($array->[0], 'heading', '\s*adf\s*');
-#	$gpl = $1 if $attr->[0]->get_value() =~ /(GPL\d*)\s*$/;
-#    }
     my $gpl = $self->get_array($denorm_slots, $row, $ap_slots);
     print $sampleFH "!Sample_platform_id = ", $gpl, "\n";
 }
@@ -1308,6 +1278,7 @@ sub _get_datum_by_info {#this could go into a subclass of experiment
 	    if ($field eq 'heading') {push @data, $datum if $datum->get_heading() =~ /$fieldtext/i;}
 	}
     }
+    croak("can not find data that has fieldtext like $fieldtext in field $field in chado.attribute table") unless scalar @data;
     return \@data;
 }
 
@@ -1318,6 +1289,7 @@ sub _get_attr_by_info {
     for my $attr (@{$obj->get_attributes()}) {
 	push @attributes, $attr if $attr->$func() =~ /$fieldtext/i;
     }
+    croak("can not find attribute with field $field like $fieldtext.") unless (scalar @attributes);
     return \@attributes;
 }
 
