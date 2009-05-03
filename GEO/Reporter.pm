@@ -1056,22 +1056,33 @@ sub get_slotnum_hyb {#this could go into a subclass of experiment
     }
 }
 
-sub get_slotnum_extract {#this could go into a subclass of experiment
+sub get_slotnum_extract {
     my ($self, $experiment, $option) = @_;
     my $type = "extract";
     my @aps = $self->get_slotnum_by_protocol_property($experiment, 1, 'heading', 'Protocol\s*Type', $type);    
     if (scalar(@aps) > 1) {
-	#croak("you confused me with more than 1 extraction protocols.");
 	# we even have submissions with multiple extraction steps
-	#croak("you confused me with more than 1 extraction protocols.");
-#	warn("this experiment has more than one extraction protocols.");
-	if ($option eq 'group') {#report this one to group arrays
+	if ($option eq 'group') { #report this one to group arrays
 	    return $self->check_complexity($experiment, \@aps);
-	} elsif ($option eq 'protocol') {#report this one to write out protocol
+	} elsif ($option eq 'protocol') { #report this one to write out protocol
 	    return $aps[0];
 	}
-    } elsif (scalar(@aps) == 0) {
-	croak("every experiment must have a protocol with type of extraction. maybe you forgot the extraction protocol in SDRF?");
+    } elsif (scalar(@aps) == 0) { #oops, we have no extraction type protocol
+	my $type = "purify";
+	my @aps = $self->get_slotnum_by_protocol_property($experiment, 1, 'heading', 'Protocol\s*Type', $type);
+	if (scalar(@aps) > 1) {
+	    # we even have submissions with multiple purify steps
+	    if ($option eq 'group') { #report this one to group arrays
+		return $self->check_complexity($experiment, \@aps);
+	    } elsif ($option eq 'protocol') { #report this one to write out protocol
+		return $aps[0];
+	    }
+	}
+	elsif (scalar(@aps == 0)) {
+	    croak("every experiment must have a protocol with type of extraction or purify. maybe you forgot this protocol in SDRF?");
+	} else {
+	    return $aps[0];
+	}
     } else {
 	return $aps[0];
     }
