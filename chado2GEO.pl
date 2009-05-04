@@ -128,18 +128,18 @@ if ($tarball_made && $send_to_geo) {
     die $ftp->message unless $success;
 
     #send geo a email
-#    my $mailer = Mail::Mailer->new;
-#    my $submitter = $ini{submitter}{submitter};
-#    $mailer->open({
-#	From => $ini{email}{from},
-#	To   => $ini{email}{to},
-#	CC   => $ini{email}{cc},
-#	Subject => 'ftp upload',
-#		  });
-#    print $mailer "userid: $submitter\n";
-#    print $mailer "file: $tarballfile\n";
-#    print $mailer "modencode DCC ID for this submission: $unique_id\n";
-#    print $mailer "Best Regards, modencode DCC\n";
+    my $mailer = Mail::Mailer->new;
+    my $submitter = $ini{submitter}{submitter};
+    $mailer->open({
+	From => $ini{email}{from},
+	To   => $ini{email}{to},
+	CC   => $ini{email}{cc},
+	Subject => 'ftp upload',
+		  });
+    print $mailer "userid: $submitter\n";
+    print $mailer "file: $tarballfile\n";
+    print $mailer "modencode DCC ID for this submission: $unique_id\n";
+    print $mailer "Best Regards, modencode DCC\n";
 }
 
 
