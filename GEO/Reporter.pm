@@ -550,13 +550,13 @@ sub get_strain {
 	for my $datum (@{$ap->get_input_data()}) {
 	    my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
 	    if (lc($name) =~ /^\s*strain\s*$/) {
-		$value =~ /[Ss]train:(.*)&/;
+		$value =~ /[Ss]train:(.*?)&/;
 		return uri_unescape($1);
 	    }
 	    for my $attr (@{$datum->get_attributes()}) {
 		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
 		if (lc($aname) =~ /^\s*strain\s*$/) {
-		    $avalue =~ /[Ss]train:(.*)&/;
+		    $avalue =~ /[Ss]train:(.*?)&/;
 		    return uri_unescape($1);		    
 		}		
 	    }
@@ -594,13 +594,13 @@ sub get_devstage {
 	for my $datum (@{$ap->get_input_data()}) {
 	    my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
 	    if (lc($name) =~ /^\s*stage\s*$/) {
-		$value =~ /[Dd]ev[Ss]tage:(.*)&/;
+		$value =~ /[Dd]ev[Ss]tage:(.*?)&/;
 		return uri_unescape($1);
 	    }
 	    for my $attr (@{$datum->get_attributes()}) {
 		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
 		if (lc($aname) =~ /^\s*dev.*stage\s*$/) {
-		    if ( $avalue =~ /[Dd]ev[Ss]tage:(.*)&/ ) {
+		    if ( $avalue =~ /[Dd]ev[Ss]tage:(.*?)&/ ) {
 			return uri_unescape($1);
 		    } else { 
 			return uri_unescape($avalue);
