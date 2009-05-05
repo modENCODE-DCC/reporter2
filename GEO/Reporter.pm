@@ -474,8 +474,12 @@ sub get_sample_source {
 	if ($ok3) {
             my @source_names = map {$_->get_value()} @$source_data;
 	    return $source_names[0];
-	} else {
-	    return "biological source ". $self->get_biological_source($denorm_slots, $ap_slots) ." row_$row";
+	} else { #check experiment factor
+	    my $factors = $self->get_factor();
+	    for my $rank (sort keys %$factors) {
+	    }
+	    my $str = join(';', $self->get_biological_source(denorm_slots, $ap_slot));
+	    return "biological source ". $str . " row_$row";
 	}
     }
 }
@@ -550,13 +554,13 @@ sub get_strain {
 	for my $datum (@{$ap->get_input_data()}) {
 	    my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
 	    if (lc($name) =~ /^\s*strain\s*$/) {
-		$value =~ /[Ss]train:(.*?)&/;
+		$value =~ /[Ss]train:(.*?):/;
 		return uri_unescape($1);
 	    }
 	    for my $attr (@{$datum->get_attributes()}) {
 		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
 		if (lc($aname) =~ /^\s*strain\s*$/) {
-		    $avalue =~ /[Ss]train:(.*?)&/;
+		    $avalue =~ /[Ss]train:(.*?):/;
 		    return uri_unescape($1);		    
 		}		
 	    }
@@ -594,13 +598,13 @@ sub get_devstage {
 	for my $datum (@{$ap->get_input_data()}) {
 	    my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
 	    if (lc($name) =~ /^\s*stage\s*$/) {
-		$value =~ /[Dd]ev[Ss]tage:(.*?)&/;
+		$value =~ /[Dd]ev[Ss]tage:(.*?):/;
 		return uri_unescape($1);
 	    }
 	    for my $attr (@{$datum->get_attributes()}) {
 		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
 		if (lc($aname) =~ /^\s*dev.*stage\s*$/) {
-		    if ( $avalue =~ /[Dd]ev[Ss]tage:(.*?)&/ ) {
+		    if ( $avalue =~ /[Dd]ev[Ss]tage:(.*?):/ ) {
 			return uri_unescape($1);
 		    } else { 
 			return uri_unescape($avalue);
@@ -1145,15 +1149,6 @@ sub get_slotnum_raw {#this could go into a subclass of experiment
     #or modencode-helper:CEL [Array Data File], or agilent_raw_microarray_data_file (TXT)
     my @types = ('nimblegen_microarray_data_file\s*\(pair\)', 'CEL', 'agilent_raw_microarray_data_file');
     for my $type (@types) {
-#	my $i = 0;
-#	for my $ap_slot (@{$experiment->get_applied_protocol_slots()}) {
-#	    my $ap = $ap_slot->[0];
-#	    for my $datum (@{$ap->get_output_data()}) {
-#		return $i if $datum->get_type()->get_name() =~ /$type/i;
-#	    }
-#	    $i++;
-#	}
-
 	my @aps = $self->get_slotnum_by_datum_property($experiment, 'output', 0, 'type', undef, $type);
 	#even there are more than 1 raw-data-generating protocols, choose the first one since it is the nearest to hyb protocol
 	return $aps[0] if scalar(@aps);
