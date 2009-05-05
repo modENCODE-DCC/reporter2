@@ -35,7 +35,7 @@ sub chado2series {
 
     my $str = 'DATA USE POLICY: This dataset was generated under the auspices of the modENCODE (http://www.modencode.org) project, which has a specific data release policy stating that the data may be used, but not published, until 9 months from the date of public release. If any data used for the analysis are derived from unpublished data prior to the expiration of the nine-month protected period, then the resource users should obtain the consent of respective resource producers prior to submission of a manuscript.';
     my ($title, $str2, $str3);
-    my @pubmed;
+   my @pubmed;
     my $id = substr($unique_id, 10);
     foreach my $property (@{$experiment->get_properties()}) {
 	my ($name, $value, $rank, $type) = ($property->get_name(), 
@@ -429,9 +429,10 @@ sub get_sample_id {
     my @hyb_names;
     my $ok = eval { @hyb_names = map {$_->get_value()} @{_get_datum_by_info($hyb_ap, 'input', 'heading', 'Hybridization\s*Name')} };
     if ($ok) {
-	return $hyb_names[0];
+	return $hyb_names[0] . ' (extraction' . $extraction . '_array' . $array . ")"; #just in case the hyb name are all the same for all rows
     } else {
-	return "extraction" . $extraction . "_" . "array" . $array;
+	my $extrac = $self->get_sample_source($denorm_slots, $row, $ap_slots);
+	return $extrac . ' (extraction' . $extraction . "_array" . $array . ")";
     }
 }
 
@@ -441,51 +442,42 @@ sub write_series_sample {#improvement: generate more meaning sample title using 
     print $seriesFH "!Series_sample_id = GSM for ", $name, "\n";
     print $sampleFH "^Sample = GSM for ", $name, "\n";
     print $sampleFH "!Sample_title = ", $name, "\n";
-#Unfortunately, in some submissions, hybridization names are the same where they should be different
-#    #use hybridization name if possible
-#    my $hyb_ap = $denorm_slots->[$ap_slots->{'hybridization'}]->[$row];
-#    my @hyb_names = map {$_->get_value()} @{_get_datum_by_info($hyb_ap, 'input', 'heading', 'Hybridization\s*Name')};
-#    if (scalar(@hyb_names)) {
-#	print $seriesFH "!Series_sample_id = GSM for ", $hyb_names[0], "\n";
-#	print $sampleFH "^Sample = GSM for ", $hyb_names[0], "\n";
-#	print $sampleFH "!Sample_title = ", $hyb_names[0], "\n";
-#    } else {#no hybridization name column, autogenerate
-#	my $name = "extraction" . $extraction . "_" . "array" . $array;
-#	print $seriesFH "!Series_sample_id = GSM for ", $name, "\n";
-#	print $sampleFH "^Sample = GSM for ", $name, "\n";
-#	print $sampleFH "!Sample_title = ", $name, "\n";	
-#    }
 }
 
 sub write_sample_source {
     my ($self, $denorm_slots, $row, $channel, $ap_slots, $sampleFH) = @_;
+    my $ch=$channel+1;
+    my $sample_name = $self->get_sample_source($denorm_slots, $row, $ap_slots);
+    print $sampleFH "!Sample_source_name_ch$ch = ", $sample_name, " channel_$ch\n";
+}
+
+sub get_sample_source {
+    my ($self, $denorm_slots, $row, $ap_slots) = @_;
     #use Sample name if exists, otherwise use Source name if exists, if none of them, auto-generate.
     my $extract_ap = $denorm_slots->[$ap_slots->{'extraction'}]->[$row];
     my $sample_data;
     my $ok1 = eval { $sample_data = _get_datum_by_info($extract_ap, 'input', 'heading', 'Sample\s*Name') } ;
-    my $ch=$channel+1;
     my $ok2;
     if (not $ok1) {
-        $ok2 = eval {$sample_data = _get_datum_by_info($extract_ap, 'output', 'heading', 'Result') };
+        $ok2 = eval {$sample_data = _get_datum_by_info($extract_ap, 'output', 'heading', 'Result') }; #nicole's RNA wikipage from Cherbas group
     }
     if ($ok1 || $ok2) {
         my @sample_names = map {$_->get_value()} @$sample_data;
-        print $sampleFH "!Sample_source_name_ch$ch = ", $sample_names[0], " channel_$ch\n";
+	return $sample_names[0];
     }
     else {
         #use the first protocol to generate source name
         my $source_ap = $denorm_slots->[0]->[$row];
         my $source_data;
-	my $ok3 = eval { _get_datum_by_info($source_ap, 'input', 'heading', 'Source\s*Name') };
-        if ($ok3) {
+	#some groups like to call source name as hybridization name
+	my $ok3 = eval { _get_datum_by_info($source_ap, 'input', 'heading', '[Hybrid|Source][A-Za-z]*\s*Name') };
+	if ($ok3) {
             my @source_names = map {$_->get_value()} @$source_data;
-            print $sampleFH "!Sample_source_name_ch$ch = ", $source_names[0], " channel_$ch\n";
-        } else {#autogenerate
-            print $sampleFH "!Sample_source_name_ch$ch = ", "source at row $row channel_$ch\n";
-        }
+	    return $source_names[0];
+	} else {
+	    return "biological source ". $self->get_biological_source($denorm_slots, $ap_slots) ." row_$row";
+	}
     }
-    my @organism_name = map {$_->get_value()} @{_get_attr_by_info($extract_ap->get_protocol(), 'heading', 'species')};
-    print $sampleFH "!Sample_organism_ch$ch = $organism_name[0]\n",
 }
 
 sub get_dye_swap_status {
@@ -551,26 +543,6 @@ sub write_characteristics {
     }
 }
 
-sub ap_write_characteristics {
-    my ($self, $ap, $channel, $sampleFH) = @_;
-    my $ch = $channel+1;
-    for my $datum (@{$ap->get_input_data()}) {
-	for my $attr (@{$datum->get_attributes()}) {
-	    my $str = "!Sample_characteristics_ch$ch = ";
-	    my ($name, $heading, $value) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
-	    $str .= "$heading";
-	    $str .= "[$name]" if $name;
-	    $str .= ": ";
-	    if ($attr->get_termsource()) {
-		$str .= $attr->get_termsource()->get_db()->get_name() . "::";
-		#$str .= $attr->get_termsource()->get_db()->get_name() . "|" . $attr->get_termsource()->get_accession();
-	    }
-	    $str .= $value;
-	    print $sampleFH $str, "\n";
-	}	
-    }
-}
-
 sub get_strain {
     my ($self, $denorm_slots, $extraction_slot, $row) = @_;
     for (my $i=0; $i<=$extraction_slot; $i++) {
@@ -599,16 +571,16 @@ sub get_cellline {
 	my $ap = $denorm_slots->[$i]->[$row];
 	for my $datum (@{$ap->get_input_data()}) {
 	    my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
-	    if (lc($name) =~ /^\s*cell\s*line\s*$/) {
-		$value =~ /[Cc]ell[Ll]ine:(.*)&/;
+	    if (lc($name) =~ /^\s*cell[_\s]*line\s*$/) {
+		$value =~ /[Cc]ell[Ll]ine:(.*?):/;
 		return uri_unescape($1);
 	    }
 	    for my $attr (@{$datum->get_attributes()}) {
 		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
-		if (lc($aname) =~ /^\s*cell\s*line\s*$/) {
-		    $avalue =~ /[Cc]ell[Ll]ine:(.*)&/;
+		if (lc($aname) =~ /^\s*cell[_\s]*line\s*$/) {
+		    $avalue =~ /[Cc]ell[Ll]ine:(.*?):/;
 		    return uri_unescape($1);		    
-		}		
+		}
 	    }
 	}
     }
@@ -621,7 +593,7 @@ sub get_devstage {
 	my $ap = $denorm_slots->[$i]->[$row];
 	for my $datum (@{$ap->get_input_data()}) {
 	    my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
-	    if (lc($name) =~ /^\s*devstage\s*$/) {
+	    if (lc($name) =~ /^\s*stage\s*$/) {
 		$value =~ /[Dd]ev[Ss]tage:(.*)&/;
 		return uri_unescape($1);
 	    }
@@ -674,19 +646,39 @@ sub get_celltype {
 
 sub get_sex {
     my ($self, $denorm_slots, $extraction_slot, $row) = @_;
+    my %sex = ('M' => 'Male', 'F' => 'Female', 'U' => 'Unknown', 'H' => 'Hermaphrodite', 'M+H' => 'mixed Male and Hermaphrodite population',
+	       'F+H' => 'mixed Female and Hermaphrodite population');
     for (my $i=0; $i<=$extraction_slot; $i++) {
 	my $ap = $denorm_slots->[$i]->[$row];
 	for my $datum (@{$ap->get_input_data()}) {
 	    for my $attr (@{$datum->get_attributes()}) {
 		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
 		if (lc($aheading) =~ /^\s*sex\s*$/) {
-		    return uri_unescape($avalue);
+		    return $sex{uri_unescape($avalue)};
 		}
 	    }
 	}
     }
     return undef;
 }
+
+sub get_tissue {
+    my ($self, $denorm_slots, $extraction_slot, $row) = @_;
+    for (my $i=0; $i<=$extraction_slot; $i++) {
+        my $ap = $denorm_slots->[$i]->[$row];
+        for my $datum (@{$ap->get_input_data()}) {
+            for my $attr (@{$datum->get_attributes()}) {
+                my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
+                if (lc($aheading) =~ /^\s*tissue\s*$/) {
+                    return uri_unescape($avalue);
+                }
+	    }
+        }
+    }
+    return undef;
+}
+
+
 
 sub get_biological_source_row {#cell line, strain, tissue,
     my ($self, $denorm_slots, $extraction_slot, $row) = @_;
@@ -703,11 +695,14 @@ sub get_biological_source_row {#cell line, strain, tissue,
     $celltype =~ s/\n//g;
     my $sex = $self->get_sex($denorm_slots, $extraction_slot, $row);
     $sex =~ s/\n//g;
+    my $tissue = $self->get_tissue($denorm_slots, $extraction_slot, $row);
+    $tissue =~ s/\n//g;
     push @str, "Strain: $strain" if $strain;
     push @str, "Cell Line: $cellline" if $cellline;
     push @str, "Developmental Stage: $devstage" if $devstage;
     push @str, "Genotype: $genotype" if $genotype;
-    push @str, "Cell Type: $celltype" if $celltype;
+    #push @str, "Cell Type: $celltype" if $celltype;
+    #push @str, "Tissue: $tissue" if $tissue;
     push @str, "Sex: $sex" if $sex;    
     return @str;
 }
