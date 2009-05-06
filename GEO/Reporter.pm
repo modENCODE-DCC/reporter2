@@ -476,9 +476,15 @@ sub get_sample_source {
 	    return $source_names[0];
 	} else { #check experiment factor
 	    my $factors = $self->get_factor();
+	    my $str;
+	    $info = $self->get_biological_source_row($denorm_slots, $ap_slot, $row, 1);
 	    for my $rank (sort keys %$factors) {
+		my $factor_type = $factors->{$rank}->[1];
+		$str .= $info{devstage} . ";" if $factor_type =~ /dev[_\w]*stage/i ;
+		$str .= $info{cellline} . ";" if $factor_type =~ /cell[_\s]*line/i ;
+		$str .= $info{strain} . ";" if lc($factor_type) = /strain/i ;
+		$str .= $info{sex} . ";" if lc($factor_type) = /sex/i ;		
 	    }
-	    my $str = join(';', $self->get_biological_source(denorm_slots, $ap_slot));
 	    return "biological source ". $str . " row_$row";
 	}
     }
@@ -515,20 +521,26 @@ sub write_sample_description {
 	for my $antibody (@$antibodies) {
 	    my $str = "!Sample_description = ";
 	    if ($antibody->get_value()) {
-		$str .= "channel ch$ch is ChIP DNA; Antibody information listed below: ";
-		for my $attr (@{$antibody->get_attributes()}) {
-		    my ($name, $heading, $value) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
-		    $str .= "$heading";
-		    $str .= "[$name] " if $name;
-		    #if ($attr->get_termsource()) {
-			#$str .= $attr->get_termsource()->get_db()->get_name() . "::";
-			#$str .= $attr->get_termsource()->get_db()->get_name() . "|" . $attr->get_termsource()->get_accession();
-		    #}
-		    $str .= ": $value; ";		
+		my $ab_permalink = $antibody->get_value();
+		$ab_permalink =~ /[Aa][Bb]:(.*?):/;
+		my $ab_name = $1;
+		if ( $ab_name =~ /^\s*no\s*antibody\s*control\s*$/i ) {
+		    $str .= "channel ch$ch is input DNA;" ;
+		} else {
+		    $str .= "channel ch$ch is ChIP DNA; Antibody information listed below: ";
+		    for my $attr (@{$antibody->get_attributes()}) {
+			my ($name, $heading, $value) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
+			$str .= "$heading";
+			$str .= "[$name] " if $name;
+			#if ($attr->get_termsource()) {
+			    #$str .= $attr->get_termsource()->get_db()->get_name() . "::";
+			    #$str .= $attr->get_termsource()->get_db()->get_name() . "|" . $attr->get_termsource()->get_accession();
+			#}
+			$str .= ": $value; ";		
+		    }
 		}
-	    }
 	    else {
-		$str .= "channel ch$ch is input DNA;"
+		$str .= "channel ch$ch is input DNA;" ;
 	    }
 	    print $sampleFH $str, "\n";
 	}
@@ -685,7 +697,7 @@ sub get_tissue {
 
 
 sub get_biological_source_row {#cell line, strain, tissue,
-    my ($self, $denorm_slots, $extraction_slot, $row) = @_;
+    my ($self, $denorm_slots, $extraction_slot, $row, $wanthash) = @_;
     my @str = ();
     my $strain = $self->get_strain($denorm_slots, $extraction_slot, $row);
     $strain =~ s/\n//g;
@@ -701,14 +713,26 @@ sub get_biological_source_row {#cell line, strain, tissue,
     $sex =~ s/\n//g;
     my $tissue = $self->get_tissue($denorm_slots, $extraction_slot, $row);
     $tissue =~ s/\n//g;
-    push @str, "Strain: $strain" if $strain;
-    push @str, "Cell Line: $cellline" if $cellline;
-    push @str, "Developmental Stage: $devstage" if $devstage;
-    push @str, "Genotype: $genotype" if $genotype;
-    #push @str, "Cell Type: $celltype" if $celltype;
-    #push @str, "Tissue: $tissue" if $tissue;
-    push @str, "Sex: $sex" if $sex;    
-    return @str;
+    my %info;
+    if ($wanthash) {
+	$info{strain} = $strain if $strain;
+	$info{cellline} = $cellline if $cellline;
+	$info{devstage} = $devstage if $devstage;
+	$info{genotype} = $genotype if $genotype;
+	$info{sex} = $sex if $sex;
+	$info{celltype} = $celltype if $celltype;
+	$info{tissue} = $tissue if $tissue;
+	return \%info;
+    } else {
+	push @str, "Strain: $strain" if $strain;
+	push @str, "Cell Line: $cellline" if $cellline;
+	push @str, "Developmental Stage: $devstage" if $devstage;
+	push @str, "Genotype: $genotype" if $genotype;
+	#push @str, "Cell Type: $celltype" if $celltype;
+	#push @str, "Tissue: $tissue" if $tissue;
+	push @str, "Sex: $sex" if $sex;    
+	return @str;
+    }
 }
 
 sub get_biological_source {
