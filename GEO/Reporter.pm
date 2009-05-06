@@ -391,10 +391,10 @@ sub chado2sample {
 	    #first write the !Series_sample_id line in Series and ^Sample, !Sample_title lines
 	    $self->write_series_sample($denorm_slots, $extraction, $array, 
 				       $combine_grp{$extraction}{$array}->[0], 
-				       $ap_slots, $seriesFH, $sampleFH);
+				       $ap_slots, $seriesFH, $sampleFH, $experiment);
 	    for (my $i=0; $i<scalar(@{$combine_grp{$extraction}{$array}}); $i++) {
 		$self->write_sample_source($denorm_slots, $combine_grp{$extraction}{$array}->[$i],
-					   $i, $ap_slots, $sampleFH);
+					   $i, $ap_slots, $sampleFH, $experiment);
 		$self->write_characteristics($denorm_slots, $combine_grp{$extraction}{$array}->[$i],
 					     $i, $ap_slots, $sampleFH, $most_complex_extraction_ap_slot);
 		$self->write_sample_description($denorm_slots, $combine_grp{$extraction}{$array}->[$i],
@@ -424,35 +424,35 @@ sub chado2sample {
 }
 
 sub get_sample_id {
-    my ($self, $denorm_slots, $extraction, $array, $row, $ap_slots) = @_;
+    my ($self, $denorm_slots, $extraction, $array, $row, $ap_slots, $experiment) = @_;
     my $hyb_ap = $denorm_slots->[$ap_slots->{'hybridization'}]->[$row];
     my @hyb_names;
     my $ok = eval { @hyb_names = map {$_->get_value()} @{_get_datum_by_info($hyb_ap, 'input', 'heading', 'Hybridization\s*Name')} };
     if ($ok) {
-	return $hyb_names[0] . ' (extraction' . $extraction . '_array' . $array . ")"; #just in case the hyb name are all the same for all rows
+	return $hyb_names[0] . ' extraction' . $extraction . '_array' . $array; #just in case the hyb name are all the same for all rows
     } else {
-	my $extrac = $self->get_sample_source($denorm_slots, $row, $ap_slots);
-	return $extrac . ' (extraction' . $extraction . "_array" . $array . ")";
+	my $extrac = $self->get_sample_source($denorm_slots, $row, $ap_slots, $experiment);
+	return $extrac . ' extraction' . $extraction . "_array" . $array;
     }
 }
 
 sub write_series_sample {#improvement: generate more meaning sample title using factor, characteristics
-    my ($self, $denorm_slots, $extraction, $array, $row, $ap_slots, $seriesFH, $sampleFH) = @_;
-    my $name = $self->get_sample_id($denorm_slots, $extraction, $array, $row, $ap_slots);
+    my ($self, $denorm_slots, $extraction, $array, $row, $ap_slots, $seriesFH, $sampleFH, $experiment) = @_;
+    my $name = $self->get_sample_id($denorm_slots, $extraction, $array, $row, $ap_slots, $experiment);
     print $seriesFH "!Series_sample_id = GSM for ", $name, "\n";
     print $sampleFH "^Sample = GSM for ", $name, "\n";
     print $sampleFH "!Sample_title = ", $name, "\n";
 }
 
 sub write_sample_source {
-    my ($self, $denorm_slots, $row, $channel, $ap_slots, $sampleFH) = @_;
+    my ($self, $denorm_slots, $row, $channel, $ap_slots, $sampleFH, $experiment) = @_;
     my $ch=$channel+1;
-    my $sample_name = $self->get_sample_source($denorm_slots, $row, $ap_slots);
+    my $sample_name = $self->get_sample_source($denorm_slots, $row, $ap_slots, $experiment);
     print $sampleFH "!Sample_source_name_ch$ch = ", $sample_name, " channel_$ch\n";
 }
 
 sub get_sample_source {
-    my ($self, $denorm_slots, $row, $ap_slots) = @_;
+    my ($self, $denorm_slots, $row, $ap_slots, $experiment) = @_;
     #use Sample name if exists, otherwise use Source name if exists, if none of them, auto-generate.
     my $extract_ap = $denorm_slots->[$ap_slots->{'extraction'}]->[$row];
     my $sample_data;
@@ -475,9 +475,9 @@ sub get_sample_source {
             my @source_names = map {$_->get_value()} @$source_data;
 	    return $source_names[0];
 	} else { #check experiment factor
-	    my $factors = $self->get_factor();
+	    my $factors = $self->get_factor($experiment);
 	    my $str;
-	    my $info = $self->get_biological_source_row($denorm_slots, $ap_slots, $row, 1);
+	    my $info = $self->get_biological_source_row($denorm_slots, $ap_slots->{'extraction'}, $row, 1);
 	    for my $rank (sort keys %$factors) {
 		my $factor_type = $factors->{$rank}->[1];
 		$str .= $info->{devstage} . ";" if $factor_type =~ /dev[_\w]*stage/i ;
