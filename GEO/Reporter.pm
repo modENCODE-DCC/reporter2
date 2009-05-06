@@ -477,13 +477,13 @@ sub get_sample_source {
 	} else { #check experiment factor
 	    my $factors = $self->get_factor();
 	    my $str;
-	    $info = $self->get_biological_source_row($denorm_slots, $ap_slot, $row, 1);
+	    my $info = $self->get_biological_source_row($denorm_slots, $ap_slots, $row, 1);
 	    for my $rank (sort keys %$factors) {
 		my $factor_type = $factors->{$rank}->[1];
-		$str .= $info{devstage} . ";" if $factor_type =~ /dev[_\w]*stage/i ;
-		$str .= $info{cellline} . ";" if $factor_type =~ /cell[_\s]*line/i ;
-		$str .= $info{strain} . ";" if lc($factor_type) = /strain/i ;
-		$str .= $info{sex} . ";" if lc($factor_type) = /sex/i ;		
+		$str .= $info->{devstage} . ";" if $factor_type =~ /dev[_\w]*stage/i ;
+		$str .= $info->{cellline} . ";" if $factor_type =~ /cell[_\s]*line/i ;
+		$str .= $info->{strain} . ";" if $factor_type = /strain/i ;
+		$str .= $info->{sex} . ";" if $factor_type = /sex/i ;		
 	    }
 	    return "biological source ". $str . " row_$row";
 	}
@@ -539,6 +539,7 @@ sub write_sample_description {
 			$str .= ": $value; ";		
 		    }
 		}
+	    }
 	    else {
 		$str .= "channel ch$ch is input DNA;" ;
 	    }
