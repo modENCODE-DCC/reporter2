@@ -293,7 +293,7 @@ sub write_series_overall_design {
     for my $rank (keys %$factors) {
 	my $factor = $factors->{$rank}->[0];
 	my $simple;
-	if ($factor =~ /A[Bb]:([\w ]*):/) {$simple = 'Antibody ' . $1;}
+	if ($factor =~ /[Aa][Bb]:([\w ]*?):/) {$simple = 'Antibody ' . $1;}
 	else {$simple = $factor . ', see above';}
 	$str .= $simple;
     }
@@ -515,7 +515,7 @@ sub write_sample_description {
     my ($self, $denorm_slots, $row, $channel, $ap_slots, $sampleFH) = @_;
     my $ip_ap = $denorm_slots->[$ap_slots->{'immunoprecipitation'}]->[$row];
     my $antibodies;
-    my $ok = eval { _get_datum_by_info($ip_ap, 'input', 'name', 'antibody') };
+    my $ok = eval { $antibodies = _get_datum_by_info($ip_ap, 'input', 'name', 'antibody') };
     my $ch=$channel+1;
     if ($ok) {
 	for my $antibody (@$antibodies) {
@@ -525,7 +525,7 @@ sub write_sample_description {
 		$ab_permalink =~ /[Aa][Bb]:(.*?):/;
 		my $ab_name = $1;
 		if ( $ab_name =~ /^\s*no\s*antibody\s*control\s*$/i ) {
-		    $str .= "channel ch$ch is input DNA;" ;
+		    $str .= "channel ch$ch is for negative control, no antibody added;" ;
 		} else {
 		    $str .= "channel ch$ch is ChIP DNA; Antibody information listed below: ";
 		    for my $attr (@{$antibody->get_attributes()}) {
@@ -567,14 +567,24 @@ sub get_strain {
 	for my $datum (@{$ap->get_input_data()}) {
 	    my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
 	    if (lc($name) =~ /^\s*strain\s*$/) {
-		$value =~ /[Ss]train:(.*?):/;
-		return uri_unescape($1);
+		$value =~ /[Ss]train:(.*)&/;
+		my $name = $1;
+		if ($name =~ /(.*?):/) {
+		    return uri_unescape($1);
+		} else {
+		    return uri_unescape($name);
+		}
 	    }
 	    for my $attr (@{$datum->get_attributes()}) {
 		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
 		if (lc($aname) =~ /^\s*strain\s*$/) {
-		    $avalue =~ /[Ss]train:(.*?):/;
-		    return uri_unescape($1);		    
+		    $avalue =~ /[Ss]train:(.*)&/;
+		    my $name = $1;
+		    if ($name =~ /(.*?):/) {
+			return uri_unescape($1);
+		    } else {
+			return uri_unescape($name);
+		    }
 		}		
 	    }
 	}
@@ -641,6 +651,22 @@ sub get_genotype {
 		}
 	    }
 	}
+    }
+    return undef;
+}
+
+sub get_transgene {
+    my ($self, $denorm_slots, $extraction_slot, $row) = @_;
+    for (my $i=0; $i<=$extraction_slot; $i++) {
+        my $ap = $denorm_slots->[$i]->[$row];
+        for my $datum (@{$ap->get_input_data()}) {
+            for my $attr (@{$datum->get_attributes()}) {
+                my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
+                if (lc($aheading) =~ /^\s*transgene\s*$/) {
+                    return uri_unescape($avalue);
+                }
+            }
+        }
     }
     return undef;
 }
@@ -714,6 +740,8 @@ sub get_biological_source_row {#cell line, strain, tissue,
     $sex =~ s/\n//g;
     my $tissue = $self->get_tissue($denorm_slots, $extraction_slot, $row);
     $tissue =~ s/\n//g;
+    my $transgene = $self->get_transgene($denorm_slots, $extraction_slot, $row);
+    $transgene =~ s/\n//g;
     my %info;
     if ($wanthash) {
 	$info{strain} = $strain if $strain;
@@ -723,6 +751,7 @@ sub get_biological_source_row {#cell line, strain, tissue,
 	$info{sex} = $sex if $sex;
 	$info{celltype} = $celltype if $celltype;
 	$info{tissue} = $tissue if $tissue;
+	$info{transgene} = $transgene if $transgene;
 	return \%info;
     } else {
 	push @str, "Strain: $strain" if $strain;
@@ -730,8 +759,9 @@ sub get_biological_source_row {#cell line, strain, tissue,
 	push @str, "Developmental Stage: $devstage" if $devstage;
 	push @str, "Genotype: $genotype" if $genotype;
 	#push @str, "Cell Type: $celltype" if $celltype;
-	#push @str, "Tissue: $tissue" if $tissue;
+	push @str, "Tissue: $tissue" if $tissue;
 	push @str, "Sex: $sex" if $sex;    
+	push @str, "Transgene: $transgene" if $transgene;
 	return @str;
     }
 }
