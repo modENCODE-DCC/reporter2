@@ -130,15 +130,14 @@ if ($make_tarball) {
 	my @untar = "tar xzf $allfile $filename_in_tarball";
 	system(@untar) == 0 || die "can not extract a datafile $filename_in_tarball from download tarball $allfile";
 	my @mv = "mv $filename_in_tarball $myfile";
+	system(@mv) == 0 || die "can not change filename $filename_in_tarball to $myfile";
 	my @tar = ("tar -r --remove-files -f $tarfile $myfile");
 	system(@tar) == 0 || die "can not append a datafile $filename_in_tarball from download tarball $allfile to my tarball $tarfile and then remove it (leave no garbage).";
     }
-    my @rm = ("rm $allfile");
-    system(@rm) == 0 || die "can not remove file $allfile";
-    my @rm = ("rm $allfilenames");
-    system(@rm) == 0 || die "can not remove file $allfilenames";    
     my @tarball = ("gzip $tarfile");
     system(@tarball) == 0 || die "can not gzip the tar file $tarfile";
+    my @rm = ("rm $allfile $allfilenames");
+    system(@rm) == 0 || die "can not remove file $allfile $allfilenames";
     $tarball_made = 1;
     print "tarball made\n";
 }
