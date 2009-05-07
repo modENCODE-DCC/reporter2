@@ -104,6 +104,8 @@ if ($make_tarball) {
     open my $allfh, ">" , $allfile;
     my $ua = new LWP::UserAgent;
     my $request = $ua->request(HTTP::Request->new('GET' => $url));
+    $request->is_success or die "$url: $request->message";
+    print "tarball provided by pipeline downloaded.\n";
     print $allfh $request->content();
     close $allfh;
     #peek into tarball to list all filenames
@@ -127,7 +129,8 @@ if ($make_tarball) {
 	}
 	my @untar = "tar xzf $allfile $filename_in_tarball";
 	system(@untar) == 0 || die "can not extract a datafile $filename_in_tarball from download tarball $allfile";
-	my @tar = ("tar -r --remove-files -f $tarfile $filename_in_tarball");
+	my @mv = "mv $filename_in_tarball $myfile";
+	my @tar = ("tar -r --remove-files -f $tarfile $myfile");
 	system(@tar) == 0 || die "can not append a datafile $filename_in_tarball from download tarball $allfile to my tarball $tarfile and then remove it (leave no garbage).";
     }
     my @rm = ("rm $allfile");
@@ -137,6 +140,7 @@ if ($make_tarball) {
     my @tarball = ("gzip $tarfile");
     system(@tarball) == 0 || die "can not gzip the tar file $tarfile";
     $tarball_made = 1;
+    print "tarball made\n";
 }
 
 if ($tarball_made && $send_to_geo) {
