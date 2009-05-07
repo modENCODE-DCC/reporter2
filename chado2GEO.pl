@@ -168,6 +168,7 @@ if ($tarball_made && $send_to_geo) {
     print $mailer "file: $tarballfile\n";
     print $mailer "modencode DCC ID for this submission: $unique_id\n";
     print $mailer "Best Regards, modencode DCC\n";
+    $mailer->close;
 
     my @rm = ("rm $tarballfile");
     system(@rm) == 0 || die "can not remove file $tarballfile";   
