@@ -97,18 +97,43 @@ if ($make_tarball) {
     my $url = $ini{tarball}{url};
     $url .= '/' unless $url =~ /\/$/;
     $url .= $unique_id . $ini{tarball}{condition};
-    my @wget = ("wget $url"); #the file will always be extracted.tgz
-    system(@wget) == 0 || die "can not fetch data at URL: $url";
+    my $allfile = 'extracted.tgz';
+    my $allfilenames = 'extracted_filenames.txt';
+    my @allfilenames;
+    #download flattened tarball of submission
+    open my $allfh, ">" , $allfile;
+    my $ua = new LWP::UserAgent;
+    my $request = $ua->request(HTTP::Request->new('GET' => $url));
+    print $allfh $request->content();
+    close $allfh;
+    #peek into tarball to list all filenames
+    my @listcmd = ("tar tzf $allfile > $allfilenames");
+    system(@listcmd) == 0 || die "can not list filenames in the downloaded tarball $allfile and save them into file $allfilenames";
+    open my $allfilenamesfh, "<", $allfilenames;
+    while (<$allfilenamesfh>) {chomp; push @allfilenames, $_;}
+    close $allfilenamesfh;
+
     for my $datafile (@datafiles) {
-	my $file = basename($datafile);
-	my $clean_file = unzipp($file);
-	my @untar = "tar xzf extracted.tgz $clean_file";
-	system(@untar) == 0 || die "can not extract a datafile $clean_file";
-	my @tar = ("tar -r --remove-files -f $tarfile $clean_file");
-	system(@tar) == 0 || die "can not append a datafile $clean_file to tarball $tarfile and then remove it.";
-	my @rm = ("rm extracted.tgz");
-	system(@rm) == 0 || die "can not remove file extracted.tgz";
+	#remove subdirectory prefix, this is the filename goes into geo tarball
+	my $myfile = basename($datafile);
+	#replace / with _ , use it to match the filenames in downloaded tarball
+	$datafile =~ s/\//_/g;
+	#remove suffix of compression, such as .zip, .bz2
+	my $clean_file = unzipp($datafile);
+	
+	my $filename_in_tarball;
+	for my $filename (@allfilenames) {
+	    $filename_in_tarball = $filename and last if $filename =~ /$clean_file/;
+	}
+	my @untar = "tar xzf $allfile $filename_in_tarball";
+	system(@untar) == 0 || die "can not extract a datafile $filename_in_tarball from download tarball $allfile";
+	my @tar = ("tar -r --remove-files -f $tarfile $filename_in_tarball");
+	system(@tar) == 0 || die "can not append a datafile $filename_in_tarball from download tarball $allfile to my tarball $tarfile and then remove it (leave no garbage).";
     }
+    my @rm = ("rm $allfile");
+    system(@rm) == 0 || die "can not remove file $allfile";
+    my @rm = ("rm $allfilenames");
+    system(@rm) == 0 || die "can not remove file $allfilenames";    
     my @tarball = ("gzip $tarfile");
     system(@tarball) == 0 || die "can not gzip the tar file $tarfile";
     $tarball_made = 1;
@@ -140,6 +165,9 @@ if ($tarball_made && $send_to_geo) {
     print $mailer "file: $tarballfile\n";
     print $mailer "modencode DCC ID for this submission: $unique_id\n";
     print $mailer "Best Regards, modencode DCC\n";
+
+    my @rm = ("rm $tarballfile");
+    system(@rm) == 0 || die "can not remove file $tarballfile";   
 }
 
 
