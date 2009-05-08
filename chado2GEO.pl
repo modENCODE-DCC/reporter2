@@ -50,6 +50,7 @@ my $schema = $ini{database}{pathprefix}. $unique_id . $ini{database}{pathsuffix}
 my $unique_name = 'modencode_' . $unique_id;
 
 #start read chado
+print "connecting to database ...";
 my $reader = new ModENCODE::Parser::Chado({
 	'dbname' => $dbname,
 	'host' => $dbhost,
@@ -57,9 +58,11 @@ my $reader = new ModENCODE::Parser::Chado({
 	'password' => $dbpassword,
    });
 my $experiment_id = $reader->set_schema($schema);
+print "done.\n";
+print "loading experiment ...";
 $reader->load_experiment($experiment_id);
 my $experiment = $reader->get_experiment();
-print "experiment loaded\n";
+print "done.\n";
 
 my $reporter = new GEO::Reporter({config => \%ini});
 my $seriesfile = $report_dir . $unique_name . '_series.txt';
@@ -68,10 +71,12 @@ my $samplefile = $report_dir . $unique_name . '_sample.txt';
 my ($seriesFH, $sampleFH);
 open $seriesFH, ">", $seriesfile;
 open $sampleFH, ">", $samplefile;
+print "generating GEO series file ...";
 $reporter->chado2series($reader, $experiment, $seriesFH, $unique_name);
-print "done with series\n";
+print "done.\n";
+print "generating GEO sample file ...";
 my ($raw_datafiles, $normalized_datafiles) = $reporter->chado2sample($reader, $experiment, $seriesFH, $sampleFH, $report_dir);
-print "done with sample\n";
+print "done.\n";
 close $sampleFH;
 close $seriesFH;
 
@@ -79,6 +84,7 @@ my $tarfile = $unique_name . '.tar';
 my $tarballfile = $unique_name . '.tar.gz';
 my $tarball_made = 0;
 if ($make_tarball) {
+    print "making tarball for GEO submission ...\n";
     my @nr_raw_datafiles = nr(@$raw_datafiles);
     my @nr_normalized_datafiles = nr(@$normalized_datafiles);
     my @datafiles = (@nr_raw_datafiles, @nr_normalized_datafiles);
@@ -94,6 +100,7 @@ if ($make_tarball) {
     system(@tar) == 0 || die "can not make tar of two GEO meta files: $?";
     system("rm $metafile") == 0 || die "can not remove catenated metafile: $?";
 
+    print "   downloading tarball provided by pipeline ...";
     my $url = $ini{tarball}{url};
     $url .= '/' unless $url =~ /\/$/;
     $url .= $unique_id . $ini{tarball}{condition};
@@ -105,9 +112,9 @@ if ($make_tarball) {
     my $ua = new LWP::UserAgent;
     my $request = $ua->request(HTTP::Request->new('GET' => $url));
     $request->is_success or die "$url: $request->message";
-    print "tarball provided by pipeline downloaded.\n";
     print $allfh $request->content();
     close $allfh;
+    print "done.\n";
     #peek into tarball to list all filenames
     my @listcmd = ("tar tzf $allfile > $allfilenames");
     system(@listcmd) == 0 || die "can not list filenames in the downloaded tarball $allfile and save them into file $allfilenames";
@@ -139,11 +146,12 @@ if ($make_tarball) {
     my @rm = ("rm $allfile $allfilenames");
     system(@rm) == 0 || die "can not remove file $allfile $allfilenames";
     $tarball_made = 1;
-    print "tarball made\n";
+    print "tarball made.\n";
 }
 
 if ($tarball_made && $send_to_geo) {
     #use ftp to send file to geo ftp site
+    print "beginning to send tarball to GEO ...\n";
     my $ftp_host = $ini{ftp}{host};
     my $ftp_username = $ini{ftp}{username};
     my $ftp_password = $ini{ftp}{password};
@@ -169,7 +177,7 @@ if ($tarball_made && $send_to_geo) {
     print $mailer "modencode DCC ID for this submission: $unique_id\n";
     print $mailer "Best Regards, modencode DCC\n";
     $mailer->close;
-
+    print "sent to GEO already!\n";
     my @rm = ("rm $tarballfile");
     system(@rm) == 0 || die "can not remove file $tarballfile";   
 }
