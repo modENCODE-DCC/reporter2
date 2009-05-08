@@ -9,7 +9,7 @@ use File::Basename;
 use File::Copy;
 use File::Spec;
 use Net::FTP;
-#use Mail::Mailer;
+use Mail::Mailer;
 use Config::IniFiles;
 use Getopt::Long;
 use lib '/users/zhengz/validator';
@@ -18,7 +18,7 @@ use GEO::Reporter;
 
 #parse command-line parameters
 my ($unique_id, $output_dir, $config); 
-my $make_tarball = 0; 
+my $make_tarball = 0;
 my $send_to_geo = 0;
 my $option = GetOptions ("unique_id=s"     => \$unique_id,
 			 "out=s"           => \$output_dir,
@@ -33,13 +33,12 @@ usage() unless -e $config;
 my %ini;
 tie %ini, 'Config::IniFiles', (-file => $config);
 
-
 #report directory
 my $report_dir = File::Spec->rel2abs($output_dir);
 #make sure $report_dir ends with '/'
 $report_dir .= '/' unless $report_dir =~ /\/$/;
 
-#what is the database for this dataset?
+#what is the database for this dataset? 
 my $dbname = $ini{database}{dbname};
 my $dbhost = $ini{database}{host};
 my $dbusername = $ini{database}{username};
@@ -83,7 +82,7 @@ close $seriesFH;
 my $tarfile = $unique_name . '.tar';
 my $tarballfile = $unique_name . '.tar.gz';
 my $tarball_made = 0;
-if ($make_tarball) {
+if ($make_tarball == 1) {
     print "making tarball for GEO submission ...\n";
     my @nr_raw_datafiles = nr(@$raw_datafiles);
     my @nr_normalized_datafiles = nr(@$normalized_datafiles);
@@ -200,6 +199,7 @@ sub unzipp {
     my $path = shift; #this is already a basename
     $path =~ s/\.tgz$//;
     $path =~ s/\.tar\.gz$//;    
+    $path =~ s/\.tar$//;
     $path =~ s/\.gz$//;    
     $path =~ s/\.bz2$//;
     $path =~ s/\.zip$//;
@@ -209,7 +209,7 @@ sub unzipp {
 }
 
 sub usage {
-    my $usage = qq[$0 -unique_id <unique_submission_id> -out <output_dir> -config <config_file> [-make_tarball <0|1>] [-send_to_geo <0|1>]];
+    my $usage = qq[$0 -unique_id <unique_submission_id> -out <output_dir> -config <config_file> [-make_tarball <0|1>] [-tarball_made <0|1>] [-send_to_geo <0|1>]];
     print "Usage: $usage\n";
     print "required parameters: unique_id, out, config\n";
     print "optional yet helpful parameter: make_tarball, default is 0 for NOT archiving any raw/normalized data.\n";
