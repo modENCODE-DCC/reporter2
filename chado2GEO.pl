@@ -209,7 +209,7 @@ sub unzipp {
 }
 
 sub usage {
-    my $usage = qq[$0 -unique_id <unique_submission_id> -out <output_dir> -config <config_file> [-make_tarball <0|1>] [-tarball_made <0|1>] [-send_to_geo <0|1>]];
+    my $usage = qq[$0 -unique_id <unique_submission_id> -out <output_dir> -config <config_file> [-make_tarball <0|1>] [-send_to_geo <0|1>]];
     print "Usage: $usage\n";
     print "required parameters: unique_id, out, config\n";
     print "optional yet helpful parameter: make_tarball, default is 0 for NOT archiving any raw/normalized data.\n";
