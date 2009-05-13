@@ -1,6 +1,15 @@
 #!/usr/bin/perl
 
 use strict;
+
+my $root_dir;
+BEGIN {
+  $root_dir = $0;
+  $root_dir =~ s/[^\/]*$//;
+  $root_dir = "./" unless $root_dir =~ /\//;
+  push @INC, $root_dir;
+}
+
 use LWP::UserAgent;
 use HTTP::Request::Common;
 use HTTP::Response;
@@ -12,7 +21,6 @@ use Net::FTP;
 use Mail::Mailer;
 use Config::IniFiles;
 use Getopt::Long;
-use lib '/users/zhengz/validator';
 use ModENCODE::Parser::Chado;
 use GEO::Reporter;
 
