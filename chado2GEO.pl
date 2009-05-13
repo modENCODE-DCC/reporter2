@@ -24,6 +24,8 @@ use Getopt::Long;
 use ModENCODE::Parser::Chado;
 use GEO::Reporter;
 
+print "initializing...\n";
+
 #parse command-line parameters
 my ($unique_id, $output_dir, $config); 
 my $make_tarball = 0;
@@ -112,22 +114,17 @@ if ($make_tarball == 1) {
     $url .= '/' unless $url =~ /\/$/;
     $url .= $unique_id . $ini{tarball}{condition};
     my $allfile = 'extracted.tgz';
-    my $allfilenames = 'extracted_filenames.txt';
     my @allfilenames;
     #download flattened tarball of submission
     open my $allfh, ">" , $allfile;
     my $ua = new LWP::UserAgent;
     my $request = $ua->request(HTTP::Request->new('GET' => $url));
-    $request->is_success or die "$url: $request->message";
+    $request->is_success or die "$url: " . $request->message;
     print $allfh $request->content();
     close $allfh;
     print "done.\n";
     #peek into tarball to list all filenames
-    my @listcmd = ("tar tzf $allfile > $allfilenames");
-    system(@listcmd) == 0 || die "can not list filenames in the downloaded tarball $allfile and save them into file $allfilenames";
-    open my $allfilenamesfh, "<", $allfilenames;
-    while (<$allfilenamesfh>) {chomp; push @allfilenames, $_;}
-    close $allfilenamesfh;
+    @allfilenames = split(/\n/, `tar tzf "$allfile"`);
 
     for my $datafile (@datafiles) {
 	#remove subdirectory prefix, this is the filename goes into geo tarball
@@ -139,7 +136,10 @@ if ($make_tarball == 1) {
 	
 	my $filename_in_tarball;
 	for my $filename (@allfilenames) {
-	    $filename_in_tarball = $filename and last if $filename =~ /$clean_file/;
+          # Strip leading "extracted_"s
+          my $filename_without_extracted = $filename;
+          $filename_without_extracted =~ s/^(extracted_)*//;
+	    $filename_in_tarball = $filename and last if $filename_without_extracted eq $clean_file;
 	}
 	my @untar = "tar xzf $allfile $filename_in_tarball";
 	system(@untar) == 0 || die "can not extract a datafile $filename_in_tarball from download tarball $allfile";
@@ -148,10 +148,11 @@ if ($make_tarball == 1) {
 	my @tar = ("tar -r --remove-files -f $tarfile $myfile");
 	system(@tar) == 0 || die "can not append a datafile $filename_in_tarball from download tarball $allfile to my tarball $tarfile and then remove it (leave no garbage).";
     }
+    system("rm $tarfile.gz 2>&1 > /dev/null"); # Remove the gzip if it already exists; ignore output
     my @tarball = ("gzip $tarfile");
-    system(@tarball) == 0 || die "can not gzip the tar file $tarfile";
-    my @rm = ("rm $allfile $allfilenames");
-    system(@rm) == 0 || die "can not remove file $allfile $allfilenames";
+    system(@tarball) == 0 || die "cannot gzip the tar file $tarfile";
+    my @rm = ("rm $allfile");
+    system(@rm) == 0 || die "can not remove file $allfile";
     $tarball_made = 1;
     print "tarball made.\n";
 }
@@ -189,6 +190,7 @@ if ($tarball_made && $send_to_geo) {
     system(@rm) == 0 || die "can not remove file $tarballfile";   
 }
 
+exit 0;
 
 sub nr {
     my @files = @_;
