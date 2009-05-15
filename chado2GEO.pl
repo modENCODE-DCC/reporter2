@@ -198,10 +198,10 @@ if (($tarball_made || $use_existent_tarball) && $send_to_geo) {
     my $success = $ftp->login($ftp_username, $ftp_password);
     die $ftp->message unless $success;
     my $success1 = $ftp->cwd($ini{ftp}{dir});
-    die $ftp->message unless $success1;
+    die "FTP error changing to directory: " . $ftp->message unless $success1;
     $ftp->binary;
     my $success2 = $ftp->put($tarballfile);
-    die $ftp->message unless $success2;
+    die "FTP error uploading tarball: " . $ftp->message unless $success2;
     my $now_string = localtime;
     #send geo a email
     my $mailer = Mail::Mailer->new;
@@ -218,10 +218,11 @@ if (($tarball_made || $use_existent_tarball) && $send_to_geo) {
     print $mailer "md5sum for this tarball is $digest\n";
     print $mailer "sent successfully at $now_string\n";
     print $mailer "Best Regards, modencode DCC\n";
-    $mailer->close;
-    print "sent to GEO already!\n";
-    my @rm = ("rm $tarballfile");
-    system(@rm) == 0 || die "can not remove file $tarballfile";   
+    $mailer->close or die "couldn't send email to GEO: $!";
+    print "file upload and email sent to GEO!\n";
+    # Don't remove tarball after uploading...
+    #my @rm = ("rm $tarballfile");
+    #system(@rm) == 0 || die "can not remove file $tarballfile";   
 }
 
 exit 0;
