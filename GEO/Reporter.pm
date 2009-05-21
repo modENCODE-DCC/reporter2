@@ -919,7 +919,7 @@ sub get_sample_sourcename_row {
     my $extract_ap = $denorm_slots{ident $self}->[$first_extraction_slot{ident $self}]->[$row];
     my $first_ap = $denorm_slots{ident $self}->[0]->[$row];
     my ($sample_data, $sample_attributes, $source_data, $source_attributes);
-    my (@sample_names, @more_sample_names, @source_names);
+    my (@sample_names, @more_sample_names, @source_names, @more_source_names);
     my ($ok1, $ok2, $ok21, $ok3, $ok4, $ok41);
     my $autogenerate = 0;
     $ok1 = eval { $sample_data = _get_datum_by_info($extract_ap, 'input', 'heading', 'Sample\s*Name') } ;
@@ -933,7 +933,7 @@ sub get_sample_sourcename_row {
 	    $ok21 = eval { $sample_attributes = _get_attr_by_info($sample_data, 'heading', 'Cell\s*Type') } ;
 	    if ($ok21) {
 		@more_sample_names = map {$_->get_value()} @$sample_attributes;
-		my $return_name = $more_sample_names[0] ."(" . $sample_names[0] . ")";
+		my $return_name = $more_sample_names[0] . "(" . $sample_names[0] . ")";
 		return ($return_name, $autogenerate);
 	    } else {
 		return ($sample_names[0], $autogenerate);
@@ -950,11 +950,15 @@ sub get_sample_sourcename_row {
 	else {
 	    $ok4 = eval { $source_data = _get_datum_by_info($first_ap, 'output', 'heading', 'Result') };
 	    if ($ok4) {
+		@source_names = map {$_->get_value()} @$source_data;
 		$ok41 = eval { $source_attributes = _get_attr_by_info($source_data, 'heading', 'Cell\s*Type') } ;
 		if ($ok41) {
-		    @source_names = map {$_->get_value()} @$source_attributes;
+		    @more_source_names = map {$_->get_value()} @$source_attributes;
+		    my $return_name = $more_source_names[0] . "(" . $source_names[0] . ")";
+		    return ($return_name, $autogenerate);
+		} else {
 		    return ($source_names[0], $autogenerate);
-		}	    
+		}
 	    }
 	}
     }
