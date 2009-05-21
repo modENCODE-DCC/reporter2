@@ -528,16 +528,21 @@ sub get_replicate_status {
     $str .= "NUMBER OF REPLICATES: " . $self->get_number_of_replicates() . "; ";
 
     my $extraction_array = $self->get_extraction_array_status();
-    my $dye_swap_status = $self->get_dye_swap_status();
+    my $dye_swap_status;
+    if ( $ap_slots{ident $self}->{'immunoprecipitation'} ) {
+	$dye_swap_status = $self->get_dye_swap_status();
+    }
     my $no_dye_swap = 1;
     for my $extraction (sort keys %$extraction_array) {
 	my $replica = $extraction+1;
 	$str .= "Replicate $replica applied to " . $extraction_array->{$extraction} . " array(s), ";
-	for my $array (sort keys %{$dye_swap_status->{$extraction}}) {
-	    if ($dye_swap_status->{$extraction}->{$array} == 1) {
-		my $sample = $self->get_sample_name_safe($extraction, $array);
-		$str .= "Replicate $replica (Sample $sample) is dye swap. ";
-		$no_dye_swap = 0;
+	if ( defined($dye_swap_status) ) {
+	    for my $array (sort keys %{$dye_swap_status->{$extraction}}) {
+		if ($dye_swap_status->{$extraction}->{$array} == 1) {
+		    my $sample = $self->get_sample_name_safe($extraction, $array);
+		    $str .= "Replicate $replica (Sample $sample) is dye swap. ";
+		    $no_dye_swap = 0;
+		}
 	    }
 	}
     }
