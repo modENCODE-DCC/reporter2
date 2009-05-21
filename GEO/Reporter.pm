@@ -480,9 +480,9 @@ sub get_experiment_type {
     my $ap_slots = $ap_slots{ident $self};
     my $design = $experiment_design{ident $self};
     my $type;
-    for my $design (values %$design) {
-	$type = "CGH" if $design =~ /comparative_genome_hybridization/i ;
-	$type = "Transcript tiling array analysis" if $design =~ /transcript/i ;
+    for my $dezn (values %$design) {
+	$type = "CGH" if $dezn =~ /comparative_genome_hybridization/i ;
+	$type = "Transcript tiling array analysis" if $dezn =~ /transcript/i ;
     }
     $type = "CHIP-chip" if $ap_slots->{'immunoprecipitation'};
     if ($type) {
