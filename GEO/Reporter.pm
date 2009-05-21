@@ -611,9 +611,13 @@ sub get_strain_row {
 		$value =~ /[Ss]train:(.*)&/;
 		my $name = $1;
 		if ($name =~ /(.*?):/) {
-		    return uri_unescape($1);
+		    my $tmp = uri_unescape($1);
+		    $tmp =~ s/_/ /g;
+		    return $tmp;
 		} else {
-		    return uri_unescape($name);
+		    my $tmp = uri_unescape($name);    
+		    $tmp =~ s/_/ /g;
+		    return $tmp;
 		}
 	    }
 	    for my $attr (@{$datum->get_attributes()}) {
@@ -622,11 +626,15 @@ sub get_strain_row {
 		    $avalue =~ /[Ss]train:(.*)&/;
 		    my $name = $1;
 		    if ($name =~ /(.*?):/) {
-			return uri_unescape($1);
+			my $tmp = uri_unescape($1);
+			$tmp =~ s/_/ /g;
+			return $tmp;
 		    } else {
-			return uri_unescape($name);
+			my $tmp = uri_unescape($name);    
+			$tmp =~ s/_/ /g;
+			return $tmp;
 		    }
-		}		
+		}
 	    }
 	}
     }
@@ -646,13 +654,17 @@ sub get_cellline_row {
 	    my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
 	    if (lc($name) =~ /^\s*cell[_\s]*line\s*$/) {
 		$value =~ /[Cc]ell[Ll]ine:(.*?):/;
-		return uri_unescape($1);
+		my $tmp = uri_unescape($1);
+		$tmp =~ s/_/ /g;
+		return $tmp;
 	    }
 	    for my $attr (@{$datum->get_attributes()}) {
 		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
 		if (lc($aname) =~ /^\s*cell[_\s]*line\s*$/) {
 		    $avalue =~ /[Cc]ell[Ll]ine:(.*?):/;
-		    return uri_unescape($1);		    
+		    my $tmp = uri_unescape($1);
+		    $tmp =~ s/_/ /g;
+		    return $tmp;
 		}
 	    }
 	}
@@ -673,15 +685,21 @@ sub get_devstage_row {
 	    my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
 	    if (lc($name) =~ /^\s*stage\s*$/) {
 		$value =~ /[Dd]ev[Ss]tage:(.*?):/;
-		return uri_unescape($1);
+		my $tmp = uri_unescape($1);
+		$tmp =~ s/_/ /g;
+		return $tmp;
 	    }
 	    for my $attr (@{$datum->get_attributes()}) {
 		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
 		if (lc($aname) =~ /^\s*dev.*stage\s*$/) {
 		    if ( $avalue =~ /[Dd]ev[Ss]tage:(.*?):/ ) {
-			return uri_unescape($1);
+			my $tmp = uri_unescape($1);
+			$tmp =~ s/_/ /g;
+			return $tmp;
 		    } else { 
-			return uri_unescape($avalue);
+			my $tmp = uri_unescape($avalue);
+			$tmp =~ s/_/ /g;
+			return $tmp;
 		    }
 		}		
 	    }
@@ -703,7 +721,9 @@ sub get_genotype_row {
 	    for my $attr (@{$datum->get_attributes()}) {
 		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
 		if (lc($aheading) =~ /^\s*genotype\s*$/) {
-		    return uri_unescape($avalue);
+		    my $tmp = uri_unescape($avalue);
+		    $tmp =~ s/_/ /g;
+		    return $tmp;
 		}
 	    }
 	}
@@ -724,7 +744,9 @@ sub get_transgene_row {
             for my $attr (@{$datum->get_attributes()}) {
                 my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
                 if (lc($aheading) =~ /^\s*transgene\s*$/) {
-                    return uri_unescape($avalue);
+		    my $tmp = uri_unescape($avalue);
+		    $tmp =~ s/_/ /g;
+		    return $tmp;
                 }
             }
         }
@@ -772,7 +794,9 @@ sub get_tissue_row {
             for my $attr (@{$datum->get_attributes()}) {
                 my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
                 if (lc($aheading) =~ /^\s*tissue\s*$/) {
-                    return uri_unescape($avalue);
+		    my $tmp = uri_unescape($avalue);
+		    $tmp =~ s/_/ /g;
+		    return $tmp;
                 }
 	    }
         }
