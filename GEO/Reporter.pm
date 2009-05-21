@@ -957,7 +957,7 @@ sub get_sample_sourcename_row {
 	    $ok21 = eval { $sample_attributes = _get_attr_by_info($sample_data->[0], 'heading', 'Cell\s*Type') } ;
 	    if ($ok21) {
 		@more_sample_names = map {$_->get_value()} @$sample_attributes;
-		my $tmp = $more_sample_names[0];
+		my $tmp = join(",", @more_sample_names);
 		$tmp = uri_unescape($tmp);
 		$tmp =~ s/_/ /g;
 		my $return_name = $tmp . " (" . $sample_names[0] . ")";
@@ -981,7 +981,7 @@ sub get_sample_sourcename_row {
 		$ok41 = eval { $source_attributes = _get_attr_by_info($source_data->[0], 'heading', 'Cell\s*Type') } ;
 		if ($ok41) {
 		    @more_source_names = map {$_->get_value()} @$source_attributes;
-		    my $tmp = $more_sample_names[0];
+		    my $tmp = join(",", @more_sample_names);
 		    $tmp = uri_unescape($tmp);
 		    $tmp =~ s/_/ /g;
 		    my $return_name = $tmp . " (" . $sample_names[0] . ")";
