@@ -581,7 +581,6 @@ sub get_dye_swap_status { # an immunoprecipitation protocol must exist before ca
 		my $label = $self->get_label_row($row);
 		if ( is_antibody($antibody) && ($label->get_value() =~ /cy3/i) ) {
 		    $dye_swap{$extraction}{$array} = 1;
-		    print "extraction $extraction array $array is dye swap.\n";
 		}
 	    }
 	}
@@ -809,10 +808,12 @@ sub get_molecule_type_row {
 
 sub get_antibody {
     my $self = shift;
-    for my $row (@{$groups{ident $self}->{0}->{0}}) {
-	my $antibody = $self->get_antibody_row($row);
-	if (my $ab = is_antibody($antibody)) {
-	    $antibody{ident $self} = $ab;
+    if ($ap_slots{ident $self}->{'immunoprecipitation'}) {
+	for my $row (@{$groups{ident $self}->{0}->{0}}) {
+	    my $antibody = $self->get_antibody_row($row);
+	    if (my $ab = is_antibody($antibody)) {
+		$antibody{ident $self} = $ab;
+	    }
 	}
     }
 }
