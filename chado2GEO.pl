@@ -88,16 +88,25 @@ if (($use_existent_metafile == 0) && ($use_existent_tarball == 0)) {
     my $experiment = $reader->get_experiment();
     print "done.\n";
 
-    my $reporter = new GEO::Reporter({config => \%ini});
-    my ($seriesFH, $sampleFH);
-    open $seriesFH, ">", $seriesfile;
-    open $sampleFH, ">", $samplefile;
-    open my $file_datafilenamesFH, ">", $file_datafilenames;
+    open my $seriesFH, ">", $seriesfile;
+    open my $sampleFH, ">", $samplefile;
+    open my $file_datafilenamesFH, ">", $file_datafilenames;    
+    my $reporter = new GEO::Reporter({
+        'config' => \%ini,
+        'unique_id' => $unique_id,
+        'sampleFH' => $sampleFH,
+        'seriesFH' => $seriesFH,
+        'report_dir' => $report_dir,
+        'reader' => $reader,
+        'experiment' => $experiment,
+    });
+    $reporter->get_all();
+
     print "generating GEO series file ...";
-    $reporter->chado2series($reader, $experiment, $seriesFH, $unique_name);
+    $reporter->chado2series();
     print "done.\n";
     print "generating GEO sample file ...";
-    my ($raw_datafiles, $normalized_datafiles) = $reporter->chado2sample($reader, $experiment, $seriesFH, $sampleFH, $report_dir);
+    my ($raw_datafiles, $normalized_datafiles) = $reporter->chado2sample();
     my @nr_raw_datafiles = nr(@$raw_datafiles);
     my @nr_normalized_datafiles = nr(@$normalized_datafiles);
     my @datafiles = (@nr_raw_datafiles, @nr_normalized_datafiles);
