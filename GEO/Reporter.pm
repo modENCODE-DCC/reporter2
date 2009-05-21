@@ -306,7 +306,7 @@ sub write_raw_data {
 		print $sampleFH "!Sample_supplementary_file = ", $file, "\n";
 	    } else {
 		print $sampleFH "!Sample_supplementary_file = ", $file . $suffix, "\n";
-	    }    
+	    }
 	    push @raw_datafiles, $path;
 	}
     }
@@ -930,10 +930,10 @@ sub get_sample_sourcename_row {
         $ok2 = eval { $sample_data = _get_datum_by_info($extract_ap, 'output', 'heading', 'Result') };
 	if ($ok2) {
 	    @sample_names = map {$_->get_value()} @$sample_data;
-	    $ok21 = eval { $sample_attributes = _get_attr_by_info($sample_data, 'heading', 'Cell\s*Type') } ;
+	    $ok21 = eval { $sample_attributes = _get_attr_by_info($sample_data->[0], 'heading', 'Cell\s*Type') } ;
 	    if ($ok21) {
 		@more_sample_names = map {$_->get_value()} @$sample_attributes;
-		my $return_name = $more_sample_names[0] . "(" . $sample_names[0] . ")";
+		my $return_name = $more_sample_names[0] . " (" . $sample_names[0] . ")";
 		return ($return_name, $autogenerate);
 	    } else {
 		return ($sample_names[0], $autogenerate);
@@ -951,10 +951,10 @@ sub get_sample_sourcename_row {
 	    $ok4 = eval { $source_data = _get_datum_by_info($first_ap, 'output', 'heading', 'Result') };
 	    if ($ok4) {
 		@source_names = map {$_->get_value()} @$source_data;
-		$ok41 = eval { $source_attributes = _get_attr_by_info($source_data, 'heading', 'Cell\s*Type') } ;
+		$ok41 = eval { $source_attributes = _get_attr_by_info($source_data->[0], 'heading', 'Cell\s*Type') } ;
 		if ($ok41) {
 		    @more_source_names = map {$_->get_value()} @$source_attributes;
-		    my $return_name = $more_source_names[0] . "(" . $source_names[0] . ")";
+		    my $return_name = $more_source_names[0] . " (" . $source_names[0] . ")";
 		    return ($return_name, $autogenerate);
 		} else {
 		    return ($source_names[0], $autogenerate);
