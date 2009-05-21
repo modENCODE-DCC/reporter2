@@ -161,31 +161,34 @@ if (($make_tarball == 1) && ($use_existent_tarball == 0)) {
     system("rm $file_datafilenames") == 0 || die "can not remove file $file_datafilenames.";
 
     for my $datafile (@datafiles) {
-	#remove subdirectory prefix, this is the filename goes into geo tarball
-	my $myfile = basename($datafile);
+	#remove subdirectory prefix, remove suffix of compression, such as .zip, .bz2, this is the filename goes into geo tarball
+	my $myfile = unzipp(basename($datafile));
+
 	#replace / with _ , use it to match the filenames in downloaded tarball
-	$datafile =~ s/\//_/g;
-	#remove suffix of compression, such as .zip, .bz2
-	my $clean_file = unzipp($datafile);
-	my $chars = 0 - length($clean_file);
+	$datafile =~ s/\//_/g;	
+	my $chars = 0 - length($datafile);
 	my $filename_in_tarball;
 	for my $filename (@allfilenames) {
-	    # the filenames in pipeline provided tarball are of pattern extracted_maindirectory_subdirectory_datafilename,
+	    # the filenames in pipeline provided tarball are of pattern extracted_maindirectory_subdirectory_datafilename(_compression_suffix),
 	    # the filenames in chado are of pattern subdirectory_datafilenames(_compression_suffix) 
-	    $filename_in_tarball = $filename and last if substr($filename, $chars) eq $clean_file;
+	    $filename_in_tarball = $filename and last if substr($filename, $chars) eq $datafile;
 	}
-	my @untar = "tar xzf $allfile $filename_in_tarball";
-	system(@untar) == 0 || die "can not extract a datafile $filename_in_tarball from download tarball $allfile";
-	my @mv = "mv $filename_in_tarball $myfile";
-	system(@mv) == 0 || die "can not change filename $filename_in_tarball to $myfile";
-	my @tar = ("tar -r --remove-files -f $tarfile $myfile");
-	system(@tar) == 0 || die "can not append a datafile $filename_in_tarball from download tarball $allfile to my tarball $tarfile and then remove it (leave no garbage).";
+	system("tar xzf $allfile $filename_in_tarball") == 0 || die "can not extract a datafile $filename_in_tarball from download tarball $allfile";
+	#if it is compressed ......right now only allows one level of compression
+	#if it is multiple levels of compression, GEO will still get compressed files in tarball, they will complain and we will fix.
+	my $zipsuffix = iszip($filename_in_tarball);
+	if ($zipsuffix) {
+	    #unzip and remove the original compressed file
+	    my $filename_no_zip = do_unzip($filename_in_tarball, $zipsuffix);
+	    system("mv $filename_no_zip $myfile") == 0 || die "can not change filename $filename_no_zip to $myfile";
+	} else {
+	    system("mv $filename_in_tarball $myfile") == 0 || die "can not change filename $filename_in_tarball to $myfile";
+	}
+	system("tar -r --remove-files -f $tarfile $myfile") == 0 || die "can not append a datafile $filename_in_tarball from download tarball $allfile to my tarball $tarfile and then remove it (leave no garbage).";
     }
     system("rm $tarballfile 2>&1 > /dev/null") if -e $tarballfile; # Remove the gzip if it already exists; ignore output
-    my @tarball = ("gzip $tarfile");
-    system(@tarball) == 0 || die "cannot gzip the tar file $tarfile";
-    my @rm = ("rm $allfile");
-    system(@rm) == 0 || die "can not remove file $allfile";
+    system("gzip $tarfile") == 0 || die "cannot gzip the tar file $tarfile";
+    system("rm $allfile") == 0 || die "can not remove file $allfile";
     $tarball_made = 1;
     print "tarball made.\n";
 }
@@ -249,6 +252,28 @@ sub nr {
     return @nr_files;
 }
 
+sub iszip {
+    my $path = shift;
+    return 'gz' if $path =~ /\.gz$/ ;
+    return 'bz2' if $path =~ /\.bz2$/ ;
+    return 'zip' if $path =~ /\.zip$/;
+    return 'zip' if $path =~ /\.ZIP$/;
+    return 'z' if $path =~ /\.Z$/;
+    return 0;
+}
+
+sub do_unzip {
+    my ($zipfile, $zipsuffix) = @_;
+    my $char = length($zipfile);
+    my $filename_no_zip;
+    if ($zipsuffix eq 'bz2') {
+	$filename_no_zip = substr($zipfile, 0, $char-4);
+	system("bzip2 -d -f $zipfile") == 0 || die "can not bunzip file $zipfile";
+    }
+    return $filename_no_zip;
+}
+
+
 sub unzipp {
     my $path = shift; #this is already a basename
     $path =~ s/\.tgz$//;
@@ -257,8 +282,8 @@ sub unzipp {
     $path =~ s/\.gz$//;    
     $path =~ s/\.bz2$//;
     $path =~ s/\.zip$//;
-    $path =~ s/\.ZIP//;
-    $path =~ s/\.Z//;
+    $path =~ s/\.ZIP$//;
+    $path =~ s/\.Z$//;
     return $path;
 }
 
