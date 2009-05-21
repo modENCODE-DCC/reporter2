@@ -484,7 +484,7 @@ sub get_experiment_type {
 	$type = "CGH" if $design =~ /comparative_genome_hybridization/i ;
 	$type = "Transcript tiling array analysis" if $design =~ /transcript/i ;
     }
-    $type = "CHIP-chip" if defined($ap_slots->{'immunoprecipitation'});
+    $type = "CHIP-chip" if $ap_slots->{'immunoprecipitation'};
     if ($type) {
 	$experiment_type{ident $self} = $type;
     } else {
