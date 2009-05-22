@@ -480,7 +480,8 @@ sub get_experiment_type {
     my $ap_slots = $ap_slots{ident $self};
     my $design = $experiment_design{ident $self};
     my $type;
-    for my $dezn (values %$design) {
+    for my $rank (keys %$design) {
+	my $dezn = $design->{$rank}->[0];
 	$type = "CGH" if $dezn =~ /comparative_genome_hybridization/i ;
 	$type = "Transcript tiling array analysis" if $dezn =~ /transcript/i ;
     }
@@ -945,7 +946,7 @@ sub get_sample_sourcename_row_safe {
 
 sub get_sample_sourcename_row {
     my ($self, $extraction, $array, $row) = @_;
-    my $extract_ap = $denorm_slots{ident $self}->[$first_extraction_slot{ident $self}]->[$row];
+    my $extract_ap = $denorm_slots{ident $self}->[$last_extraction_slot{ident $self}]->[$row];
     my $first_ap = $denorm_slots{ident $self}->[0]->[$row];
     my ($sample_data, $sample_attributes, $source_data, $source_attributes);
     my (@sample_names, @more_sample_names, @source_names, @more_source_names);
