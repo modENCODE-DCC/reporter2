@@ -614,22 +614,7 @@ sub get_strain_row {
 	for my $datum (@{$ap->get_input_data()}) {
 	    my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
 	    if (lc($name) =~ /^\s*strain\s*$/) {
-		$value =~ /[Ss]train:(.*)&/;
-		my $name = $1;
-		if ($name =~ /(.*?):/) {
-		    my $tmp = uri_unescape($1);
-		    $tmp =~ s/_/ /g;
-		    return $tmp;
-		} else {
-		    my $tmp = uri_unescape($name);    
-		    $tmp =~ s/_/ /g;
-		    return $tmp;
-		}
-	    }
-	    for my $attr (@{$datum->get_attributes()}) {
-		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
-		if (lc($aname) =~ /^\s*strain\s*$/) {
-		    $avalue =~ /[Ss]train:(.*)&/;
+		if ($value =~ /[Ss]train:(.*)&/) {
 		    my $name = $1;
 		    if ($name =~ /(.*?):/) {
 			my $tmp = uri_unescape($1);
@@ -639,6 +624,33 @@ sub get_strain_row {
 			my $tmp = uri_unescape($name);    
 			$tmp =~ s/_/ /g;
 			return $tmp;
+		    }
+		} else { #fly strain
+		    $value =~ /(.*)&/ ;
+		    my $tmp = uri_unescape($1);
+		    $tmp =~ s/_/ /g;
+		    return $tmp;
+		}
+	    }
+	    for my $attr (@{$datum->get_attributes()}) {
+		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
+		if (lc($aname) =~ /^\s*strain\s*$/) {
+		    if ( $avalue =~ /[Ss]train:(.*)&/ ) {
+			my $name = $1;
+			if ($name =~ /(.*?):/) {
+			    my $tmp = uri_unescape($1);
+			    $tmp =~ s/_/ /g;
+			    return $tmp;
+			} else {
+			    my $tmp = uri_unescape($name);    
+			    $tmp =~ s/_/ /g;
+			    return $tmp;
+			}
+		    } else {
+			$value =~ /(.*)&/ ;
+			my $tmp = uri_unescape($1);
+			$tmp =~ s/_/ /g;
+			return $tmp;			
 		    }
 		}
 	    }
