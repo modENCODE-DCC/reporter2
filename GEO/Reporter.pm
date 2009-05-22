@@ -1041,7 +1041,7 @@ sub get_slotnum_hyb {
 sub get_slotnum_extract {
     my ($self, $option) = @_;
     my $type = "extract";
-    my @aps = $self->get_slotnum_by_protocol_property(1, 'heading', 'Protocol\s*Type', $type);    
+    my @aps = $self->get_slotnum_by_protocol_property(1, 'heading', 'Protocol\s*Type', $type);
     if (scalar(@aps) > 1) {
 	if ($option eq 'group') { #report this one to group rows in SDRF to GEO samples=extraction+array
 	    return $self->check_complexity(\@aps);
@@ -1053,12 +1053,12 @@ sub get_slotnum_extract {
 	my @aps = $self->get_slotnum_by_protocol_property(1, 'heading', 'Protocol\s*Type', $type);
 	if (scalar(@aps) > 1) {
 	    if ($option eq 'group') {
-		return check_complexity(\@aps);
+		return $self->check_complexity(\@aps);
 	    } elsif ($option eq 'protocol') {
 		return $aps[0];
 	    }
 	}
-	elsif (scalar(@aps == 0)) {
+	elsif (scalar(@aps) == 0) {
 	    croak("Every experiment must have a protocol with protocol type extraction or purify. Maybe you omitted this protocol in SDRF?");
 	} else {
 	    return $aps[0];
@@ -1069,15 +1069,20 @@ sub get_slotnum_extract {
 }
 
 sub check_complexity {
-    my ($self, $slots) = shift;
-    my $ap_slots = $experiment{ident $self}->get_applied_protocol_slots();
+    my ($self, $slots) = @_;
+    my $xap_slots = $experiment{ident $self}->get_applied_protocol_slots();
     my $slot = $slots->[0];
-    my $num_norm_ap = scalar @{$ap_slots->[$slot]};
+    my $num_norm_ap = scalar @{$xap_slots->[$slot]};
     for my $aslot (@$slots) {
-	my $this_num_norm_ap = scalar @{$ap_slots->[$aslot]};
-	if ( $this_num_norm_ap > $num_norm_ap ) {
+	my $this_num_norm_ap = scalar @{$xap_slots->[$aslot]};
+	if ( $this_num_norm_ap > $num_norm_ap) {
 	    $num_norm_ap = $this_num_norm_ap;
 	    $slot = $aslot;
+	} elsif ($this_num_norm_ap == $num_norm_ap) {
+	    if ($aslot > $slot) {
+		$num_norm_ap = $this_num_norm_ap;
+		$slot = $aslot;
+	    }
 	}
     }
     return $slot;
@@ -1088,6 +1093,7 @@ sub get_slotnum_ip {
     my $type = 'immunoprecipitation';
     my @aps = $self->get_slotnum_by_protocol_property(1, 'heading', 'Protocol\s*Type', $type);
     return $aps[-1] if scalar(@aps);
+    return undef;
 }
 
 sub get_slotnum_label {
