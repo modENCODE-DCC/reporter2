@@ -585,7 +585,7 @@ sub get_dye_swap_status { # an immunoprecipitation protocol must exist before ca
 		my $row = $grps->{$extraction}->{$array}->[$channel];
 		my $antibody = $self->get_antibody_row($row);
 		my $label = $self->get_label_row($row);
-		if ( is_antibody($antibody) && ($label->get_value() =~ /cy3/i) ) {
+		if ( $antibody && is_antibody($antibody) && ($label->get_value() =~ /cy3/i) ) {
 		    $dye_swap{$extraction}{$array} = 1;
 		}
 	    }
@@ -853,8 +853,10 @@ sub get_antibody {
     if ($ap_slots{ident $self}->{'immunoprecipitation'}) {
 	for my $row (@{$groups{ident $self}->{0}->{0}}) {
 	    my $antibody = $self->get_antibody_row($row);
-	    if (my $ab = is_antibody($antibody)) {
-		$antibody{ident $self} = $ab;
+	    if ($antibody) {
+		if (my $ab = is_antibody($antibody)) {
+		    $antibody{ident $self} = $ab;
+		}
 	    }
 	}
     }
@@ -881,8 +883,10 @@ sub get_antibody_row { #keep it as a datum object
     my $denorm_slots = $denorm_slots{ident $self} ;
     my $ap_slots = $ap_slots{ident $self} ;
     my $ip_ap = $denorm_slots->[$ap_slots->{'immunoprecipitation'}]->[$row];
-    my $antibodies = _get_datum_by_info($ip_ap, 'input', 'name', 'antibody');
-    return $antibodies->[0];
+    my $antibodies;
+    eval { $antibodies = _get_datum_by_info($ip_ap, 'input', 'name', 'antibody') } ;
+    return $antibodies->[0] unless $@;
+    return undef;
 }
 
 sub get_label_row { #keep it as a datum object
