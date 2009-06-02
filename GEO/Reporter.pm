@@ -60,6 +60,7 @@ sub chado2series {
     my $self = shift;
     my $seriesFH = $seriesFH{ident $self};
     my $uniquename = $experiment{ident $self}->get_uniquename();
+    my $internal_id = "modENCODE_submission_$unique_id{ident $self}";
     my $project_announcement = 'This submission comes from a modENCODE project of ' . $project{ident $self} . '. For full list of modENCODE projects, see http://www.genome.gov/26524648 ';
     my $data_use_policy = 'DATA USE POLICY: This dataset was generated under the auspices of the modENCODE (http://www.modencode.org) project, which has a specific data release policy stating that the data may be used, but not published, until 9 months from the date of public release. If any data used for the analysis are derived from unpublished data prior to the expiration of the nine-month protected period, then the resource users should obtain the consent of respective resource producers prior to submission of a manuscript.';
     my ($investigation_title, $project_goal);
@@ -75,8 +76,8 @@ sub chado2series {
     }
 
     print $seriesFH "^Series = ", $uniquename, "\n";
-    print $seriesFH "!Series_title = modENCODE submission ", $unique_id{ident $self}, ", ", substr($investigation_title, 0, 95-length($unique_id{ident $self})), "\n";
-    for my $summary (($project_announcement, $project_goal, $data_use_policy)) {
+    print $seriesFH "!Series_title = " . substr($investigation_title, 0, 120), "\n";
+    for my $summary (($internal_id, $project_announcement, $project_goal, $data_use_policy)) {
 	print $seriesFH "!Series_summary = ", $summary, "\n";
     }
     if (scalar @pubmed) {
