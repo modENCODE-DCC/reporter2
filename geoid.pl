@@ -11,6 +11,7 @@ BEGIN {
 
 use Carp;
 use Data::Dumper;
+use Getopt::Long;
 use Config::IniFiles;
 use LWP::UserAgent;
 use HTTP::Request::Common;
@@ -19,10 +20,11 @@ use File::Temp;
 use XML::Simple;
 
 print "initializing...\n";
-
-#get config
-print "get config ...";
-my $config = $root_dir . 'geoid.ini';
+#default config
+my $config;
+$config = $root_dir . 'geoid.ini';
+#get option, override default config if config parameter exists
+my $option = GetOptions ("config=s" => \$config);
 tie my %ini, 'Config::IniFiles', (-file => $config);
 print "done.\n";
 
