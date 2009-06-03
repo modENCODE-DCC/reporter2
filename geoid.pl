@@ -6,9 +6,10 @@ BEGIN {
   $root_dir = $0;
   $root_dir =~ s/[^\/]*$//;
   $root_dir = "./" unless $root_dir =~ /\//;
-  #push @INC, $root_dir;
+  push @INC, $root_dir;
 }
 
+use Carp;
 use Data::Dumper;
 use Config::IniFiles;
 use LWP::UserAgent;
@@ -47,15 +48,15 @@ print "download and parse esummary xml file for GEO UIDs ...\n";
 my $xs = new XML::Simple;
 open my $gsefh, ">", $gsefile;
 open my $gsmfh, ">", $gsmfile;
-print $gsefh "#submission_id GSE\n";
-print $gsmfh "#submission_id GSM\n";
+print $gsefh "#submission_id title GSE\n";
+print $gsmfh "#submission_id title GSM\n";
 for my $id (@$ids) {
     print "  GEO UID $id: downloading...";
     my $summary_url = $ini{geo}{summary_url} . "db=$ini{geo}{db}" . "&id=$id";
     my $summaryfile = fetch($summary_url);
     print "done. parsing...";
     my $esummary = $xs->XMLin($summaryfile);
-    my ($type, $summary, $gse, $gsm);
+    my ($type, $title, $summary, $gse, $gsm);
     my $is_gse = 0;
     for my $item (@{$esummary->{DocSum}->{Item}}) {
 	$type = $item->{content} if $item->{Name} eq 'entryType';
@@ -65,18 +66,25 @@ for my $id (@$ids) {
 	}
     }
     if ($is_gse) {
-	for my $item (@{$esummary->{DocSum}->{Item}}) {	    
+	for my $item (@{$esummary->{DocSum}->{Item}}) {
+	    $title = $item->{content} if $item->{Name} eq 'title';
 	    $summary = $item->{content} if $item->{Name} eq 'summary';
 	    $gse = $item->{content} if $item->{Name} eq 'GSE';
 	    $gsm = $item->{content} if $item->{Name} eq 'GSM_L';
 	}
-	$summary =~ /modENCODE_submission_(\d*)?/i;
-	my $internal_id = $1;
+	my $internal_id;
+	for my $tmp (($title, $summary)) {
+	    $internal_id = $1 and last if $tmp =~ /modENCODE[_ ]submission[_ ](\d*)?/i ; 
+	}
+	$gse =~ s/^\s*//; $gse =~ s/\s*$//; $gse = 'GSE' . $gse;
 	my @gsm = split(';', $gsm);
-	@gsm = map { $_ =~ s/^\s*//; $_ =~ s/\s*$//; $_; } @gsm;
+	@gsm = map { $_ =~ s/^\s*//; $_ =~ s/\s*$//; 'GSM' . $_; } @gsm;
+
+	warn "I could not find DCC internal submission id for this GSE number $gse." unless $internal_id;
+	$internal_id = $internal_id ? $internal_id : "Unknown id";
 	print "done. write out ...";
-	print $gsefh $internal_id, "\t", $gse, "\n";
-	print $gsmfh $internal_id, "\t", join("\t", @gsm), "\n";
+	print $gsefh join("\t", ($internal_id, $title, $gse)), "\n";
+	print $gsmfh join("\t", ($internal_id, $title, @gsm)), "\n";
     }
     print "done\n";
 }
@@ -85,7 +93,6 @@ close $gsmfh;
 print "done\n";
 
 exit 0; 
-
 
 sub fetch {
     my $url = shift;
