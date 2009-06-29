@@ -582,13 +582,21 @@ sub get_dye_swap_status { # an immunoprecipitation protocol must exist before ca
 	    my $num_of_channel = scalar @{$grps->{$extraction}->{$array}};
 	    $dye_swap{$extraction}{$array} = 0; 
 	    next if $num_of_channel == 1;
+	    my $cy5_without_antibody = 0;
+	    my $cy3_with_antibody = 0;
 	    for (my $channel=0; $channel<$num_of_channel; $channel++) {
 		my $row = $grps->{$extraction}->{$array}->[$channel];
 		my $antibody = $self->get_antibody_row($row);
 		my $label = $self->get_label_row($row);
-		if ( $antibody && is_antibody($antibody) && ($label->get_value() =~ /cy3/i) ) {
-		    $dye_swap{$extraction}{$array} = 1;
+		if ( $antibody && is_antibody($antibody) && ($label->get_value() =~ /cy3/i) ) { #antibody and cy3
+		    $cy3_with_antibody = 1;
 		}
+		if ( (!is_antibody($antibody)) && ($label->get_value() =~ /cy5/i) ) { #cy5 but not antibody
+                    $cy5_without_antibody = 1;
+                }
+	    }
+	    if ( $cy5_without_antibody && $cy3_with_antibody ) {
+		$dye_swap{$extraction}{$array} = 1;
 	    }
 	}
     }
@@ -834,7 +842,7 @@ sub get_molecule_type_row {
     my $molecule;
     for my $datum (@{$extraction_ap->get_output_data()}) {
 	my $type = $datum->get_type()->get_name();
-	$molecule = 'genomic DNA' and last if ($type =~ /dna/i);
+	$molecule = 'genomic DNA' and last if ($type =~ /dna/i || $type =~ /chromatin/i);
 	if ($type =~ /rna/i) {
 	    $molecule = 'total RNA' and last if $type =~ /total/i;
 	    $molecule = 'polyA RNA' and last if $type =~ /polyA/i;
@@ -1076,9 +1084,22 @@ sub get_slotnum_extract {
 		return $aps[0];
 	    }
 	}
-	elsif (scalar(@aps) == 0) {
-	    croak("Every experiment must have a protocol with protocol type extraction or purify. Maybe you omitted this protocol in SDRF?");
-	} else {
+	elsif (scalar(@aps) == 0) { #oops, we have no protocol with protocol type equals regex to 'purify'
+	    my $type = 'biosample_preparation_protocol';
+	    my @aps = $self->get_slotnum_by_protocol_property(1, 'heading', 'Protocol\s*Type', $type);
+	    if (scalar(@aps) > 1) {
+		if ($option eq 'group') {
+		    return $self->check_complexity(\@aps);
+		} elsif ($option eq 'protocol') {
+		    return $aps[0];
+		}
+	    } elsif (scalar(@aps) == 0) {
+		croak("Every experiment must have a protocol with protocol type extraction or purify. Maybe you omitted this protocol in SDRF?");
+	    } else {
+		return $aps[0];
+	    }
+	} 
+	else {
 	    return $aps[0];
 	}
     } else {
