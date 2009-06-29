@@ -365,7 +365,7 @@ sub get_project {
 		   'henikoff' => 'Steven Henikoff',
 		   'karpen' => 'Gary Karpen',
 		   'lai' => 'Eric Lai',
-		   'macAlpine' => 'David MacAlpine',
+		   'macalpine' => 'David MacAlpine',
 		   'piano' => 'Fabio Piano',
 		   'snyder' => 'Michael Snyder',
 		   'waterston' => 'Robert Waterston',
