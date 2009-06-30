@@ -187,23 +187,24 @@ sub write_sample_description {
     my $ok = eval { $antibodies = _get_datum_by_info($ip_ap, 'input', 'name', 'antibody') };
     my $ch=$channel+1;
     if ($ok) {
+	my @output_antibody_dbfields = ('official name', 'target name', 'host', 'antigen', 'clonal', 'purified', 'company', 'catalog', 'reference', 'short description');
 	for my $antibody (@$antibodies) {
 	    my $str = "!Sample_description = ";
-	    if ($antibody->get_value()) {
-		my $ab_permalink = $antibody->get_value();
-		$ab_permalink =~ /[Aa][Bb]:(.*?):/;
-		my $ab_name = $1;
-		if ( $ab_name =~ /^\s*no\s*antibody\s*control\s*$/i ) {
-		    $str .= "channel ch$ch is for negative control, no antibody added;" ;
-		} else {
+	    my $info = get_dbfield_info($antibody);
+	    
+	    my $check = is_antibody($antibody);
+	    if ( $check == 1 ) { #real antibody or antibody with Comment[IP]=0 column
+		my $double_check = have_comment_IP_0($antibody);
+		if ( $double_check == 0 ) {
 		    $str .= "channel ch$ch is ChIP DNA; Antibody information listed below: ";
-		    for my $attr (@{$antibody->get_attributes()}) {
-			my ($name, $heading, $value) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
-			$str .= "$heading";
-			$str .= "[$name] " if $name;
-			$str .= ": $value; ";		
-		    }
+		    $str .= write_dbfield_info($info, \@output_antibody_dbfields);
+		} else {
+		    $str .= "channel ch$ch is input DNA;";
 		}
+	    }
+	    elsif ( $check == 0 ) { #negative control
+		$str .= "channel ch$ch is negative control for ChIP; Antibody information listed below: ";
+		$str .= write_dbfield_info($info, \@output_antibody_dbfields);
 	    }
 	    else {
 		$str .= "channel ch$ch is input DNA;" ;
@@ -428,7 +429,8 @@ sub get_real_factors {
 	$rfactor = 'Developmental Stage ' . $devstage{ident $self} if ( $type =~ /dev/i || $type =~ /stage/i);
 	$rfactor = 'Tissue ' . $tissue{ident $self} if $type =~ /tissue/i;
 	$rfactor = 'Sex ' . $sex{ident $self} if $type =~ /sex/i;
-	$rfactor = 'Antibody ' . $antibody{ident $self} if $type =~ /antibody/i;
+	my $antibody_name = get_dbfield_info($antibody{ident $self})->{'official name'};
+	$rfactor = 'Antibody ' . $antibody_name if $type =~ /antibody/i;
 	$rfactor = 'Gene' . $factors->{$rank}->[0] if $type =~ /gene/i;
 	push @rfactors, $rfactor if defined($rfactor);
     }
@@ -588,10 +590,10 @@ sub get_dye_swap_status { # an immunoprecipitation protocol must exist before ca
 		my $row = $grps->{$extraction}->{$array}->[$channel];
 		my $antibody = $self->get_antibody_row($row);
 		my $label = $self->get_label_row($row);
-		if ( $antibody && is_antibody($antibody) && ($label->get_value() =~ /cy3/i) ) { #antibody and cy3
+		if ( $antibody && (is_antibody($antibody) == 1) && ($label->get_value() =~ /cy3/i) ) { #antibody and cy3
 		    $cy3_with_antibody = 1;
 		}
-		if ( (!is_antibody($antibody)) && ($label->get_value() =~ /cy5/i) ) { #cy5 but not antibody
+		if ( (is_antibody($antibody) != 1) && ($label->get_value() =~ /cy5/i) ) { #cy5 but not antibody
                     $cy5_without_antibody = 1;
                 }
 	    }
@@ -861,9 +863,9 @@ sub get_antibody {
     my $self = shift;
     if ($ap_slots{ident $self}->{'immunoprecipitation'}) {
 	for my $row (@{$groups{ident $self}->{0}->{0}}) {
-	    my $antibody = $self->get_antibody_row($row);
-	    if ($antibody) {
-		if (my $ab = is_antibody($antibody)) {
+	    my $ab = $self->get_antibody_row($row);
+	    if ($ab) {
+		if ( is_antibody($ab) != -1 ) { #negative control or real antibody 
 		    $antibody{ident $self} = $ab;
 		}
 	    }
@@ -874,7 +876,7 @@ sub get_antibody {
 sub is_antibody {
     my $ab = shift;
     my $antibody = $ab->get_value();
-    return 0 unless $antibody;
+    return -1 unless $antibody;
     $antibody =~ /[Aa][Bb]:([\w ]*?):/;
     $antibody = $1;
     $antibody =~ s/ +/ /g;
@@ -884,8 +886,48 @@ sub is_antibody {
 	$is_control = 1 and last if $antibody eq $control;
     }
     return 0 if $is_control;
-    return $antibody;
+    return 1;
 }
+
+sub have_comment_IP_0 { #antibody has a attribute Comment[IP] == 0
+    my $antibody = shift;
+    for my $attr (@{$antibody->get_attributes()}) {
+	my ($name, $heading, $value) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
+	if ( $heading =~ /^\s*comment\s*$/i && $name =~ /^\s*ip\s*$/i && $value == 0 ) {
+	    return 1;
+	}
+    }
+    return 0;
+}
+
+sub write_dbfield_info {
+    # %info from get_dbfield_info function;
+    # @fields order of fields for output
+    my ($info, $fields) = @_;
+    my $str;
+    for my $fld (@$fields) {
+	$str .= $fld . ": " . $info->{$fld} . ";" if exists($info->{$fld});
+    }
+    return $str;
+}
+
+sub get_dbfield_info { #concatenate rows of values with same heading and name, the phenomana is frequently caused by a bug/glitch? of EO's dbfields/XMLwriter code 
+    my $obj = shift;
+    my %info;
+    for my $attr (@{$obj->get_attributes()}) {
+	my ($name, $heading, $value) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
+	my $s = $name ? "$heading [$name]" : $heading;
+	my $t = uri_unescape($value);
+	$t =~ s/_/ /g;
+	if ( exists $info{$s} ) {
+	    $info{$s} .= " $t";
+	} else {
+	    $info{$s} = $t;
+	}
+    }
+    return \%info;
+}
+
 
 sub get_antibody_row { #keep it as a datum object
     my ($self, $row) = @_;
