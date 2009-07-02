@@ -540,7 +540,7 @@ sub get_termsource {
   $sth->execute($dbxref_id);
   my $row = $sth->fetchrow_hashref();
   map { $row->{$_} = xml_unescape($row->{$_}) } keys(%$row);
-  $row->{'accession'} =~ s/.*://; # Get rid of flybase DB:acc style accessions
+  #$row->{'accession'} =~ s/.*://; # Get rid of flybase DB:acc style accessions
   my $dbxref = new ModENCODE::Chado::DBXref({
       'accession' => $row->{'accession'},
       'version' => $row->{'version'},
