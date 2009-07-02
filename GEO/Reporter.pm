@@ -1355,8 +1355,8 @@ sub get_protocol_text {
     my ($self, $ap) = @_;
     my $protocol = $ap->get_protocol();
     if ( $self->get_long_protocol_text() ) {
-	my @url = map {$_->get_value()} @{_get_attr_by_info($protocol, 'heading', 'Protocol\s*URL')};
-	return decode_entities($self->_get_full_protocol_text($url[0]));
+	my $url = $protocol->get_termsource()->get_accession();
+	return decode_entities($self->_get_full_protocol_text($url));
     }
     else {
 	if (my $txt = $protocol->get_description()) {
