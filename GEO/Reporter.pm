@@ -37,10 +37,11 @@ my %sex                    :ATTR( :set<sex>                    :default<undef>);
 my %antibody               :ATTR( :set<antibody>               :default<undef>);
 my %molecule_type          :ATTR( :set<molecule_type>          :default<undef>);
 my %groups                 :ATTR( :set<groups>                 :default<undef>);
+my %long_protocol_text     :ATTR( :name<long_protocol_text>    :default<undef>);
 
 sub BUILD {
     my ($self, $ident, $args) = @_;
-    for my $parameter (qw[config unique_id sampleFH seriesFH report_dir reader experiment]) {
+    for my $parameter (qw[config unique_id sampleFH seriesFH report_dir reader experiment long_protocol_text]) {
 	my $value = $args->{$parameter} || croak "can not find required parameter $parameter"; 
 	my $set_func = "set_" . $parameter;
 	$self->$set_func($value);
@@ -1336,12 +1337,14 @@ sub _group {
 sub get_protocol_text {
     my ($self, $ap) = @_;
     my $protocol = $ap->get_protocol();
-    #use short description
-    if (my $txt = $protocol->get_description()) {
-	return decode_entities($txt);
-    } else {
+    if ( $self->get_long_protocol_text() ) {
 	my @url = map {$_->get_value()} @{_get_attr_by_info($protocol, 'heading', 'Protocol\s*URL')};
 	return decode_entities($self->_get_full_protocol_text($url[0]));
+    }
+    else {
+	if (my $txt = $protocol->get_description()) {
+	    return decode_entities($txt);
+	}
     }
 }
 

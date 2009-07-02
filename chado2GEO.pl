@@ -38,6 +38,7 @@ my $send_to_geo = 0;
 my $option = GetOptions ("unique_id=s"     => \$unique_id,
 			 "out=s"           => \$output_dir,
 			 "config=s"        => \$config,
+			 "long_protocol_text=s" => \$long_protocol_text,
 			 "use_existent_metafile=s" => \$use_existent_metafile,
 			 "make_tarball=s"  => \$make_tarball,
 			 "use_existent_tarball=s"  => \$use_existent_tarball,   
@@ -99,6 +100,7 @@ if (($use_existent_metafile == 0) && ($use_existent_tarball == 0)) {
         'report_dir' => $report_dir,
         'reader' => $reader,
         'experiment' => $experiment,
+	'long_protocol_text' => $long_protocol_text,
     });
     $reporter->get_all();
 
