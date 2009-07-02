@@ -877,12 +877,8 @@ sub get_antibody {
     my $self = shift;
     if ($ap_slots{ident $self}->{'immunoprecipitation'}) {
      	for my $row (@{$groups{ident $self}->{0}->{0}}) {
-	    print "row is $row\n";
 	    my $ab = $self->get_antibody_row($row);
-	    print "ab is $ab\n";
 	    if ($ab) {
-		print "is antibody :", is_antibody($ab), "\n";
-		print get_dbfield_info($ab)->{'official name'}, "\n";
 		if ( is_antibody($ab) != -1 ) { #negative control or real antibody 
 		    $antibody{ident $self} = $ab;
 		}
@@ -1356,7 +1352,10 @@ sub get_protocol_text {
     my $protocol = $ap->get_protocol();
     if ( $self->get_long_protocol_text() ) {
 	my $url = $protocol->get_termsource()->get_accession();
-	return decode_entities($self->_get_full_protocol_text($url));
+	$url =~ /\?title=(\w+):?/;
+	my $title = $1;
+	$title =~ s/_/ /g;
+	return $title . " protocol; " . decode_entities($self->_get_full_protocol_text($url));
     }
     else {
 	if (my $txt = $protocol->get_description()) {
@@ -1408,6 +1407,8 @@ sub _get_full_protocol_text {
 
     $txt =~ s/(.*)Validation\s*Form.*/{$txt = $1;}/gsex; #find the last match, just in case
     $txt =~ s/(.*)Notes\s*\n.*/{$txt = $1;}/gsex;
+    $txt =~ s/Protocol\s*Text\s*-*\s*//i;
+    $txt =~ s/ +/ /g;
     return $txt;    
 }
 
