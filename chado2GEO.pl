@@ -35,6 +35,7 @@ my $use_existent_metafile = 0;
 my $make_tarball = 0;
 my $use_existent_tarball = 0;
 my $send_to_geo = 0;
+my $long_protocol_text = 0;
 my $option = GetOptions ("unique_id=s"     => \$unique_id,
 			 "out=s"           => \$output_dir,
 			 "config=s"        => \$config,
@@ -235,8 +236,8 @@ if (($tarball_made || $use_existent_tarball) && $send_to_geo) {
     $mailer->close or die "couldn't send email to GEO: $!";
     print "file upload and email sent to GEO!\n";
     # Don't remove tarball after uploading...
-    #my @rm = ("rm $tarballfile");
-    #system(@rm) == 0 || die "can not remove file $tarballfile";   
+    my @rm = ("rm $tarballfile");
+    system(@rm) == 0 || die "can not remove file $tarballfile";   
 }
 
 exit 0;
@@ -290,7 +291,7 @@ sub unzipp {
 }
 
 sub usage {
-    my $usage = qq[$0 -unique_id <unique_submission_id> -out <output_dir> [-config <config_file>] [-use_existent_metafile <0|1>] [-make_tarball <0|1>] [-use_existent_tarball <0|1>] [-send_to_geo <0|1>]];
+    my $usage = qq[$0 -unique_id <unique_submission_id> -out <output_dir> [-config <config_file>] [-use_existent_metafile <0|1>] [-make_tarball <0|1>] [-use_existent_tarball <0|1>] [-send_to_geo <0|1>] [-long_protocol_text <0|1>]];
     print "Usage: $usage\n";
     print "example 1, generate soft file but no tarball, $0 -unique_id id -out dir \n";
     print "example 2, generate tarball using existent soft file, $0 -unique_id id -out dir -use_existent_metafile 1 -make_tarball 1 \n";
@@ -301,5 +302,6 @@ sub usage {
     print "optional yet helpful parameter: make_tarball, default is 0 for NOT archiving any raw/normalized data.\n";
     print "optional yet helpful parameter: use_existent_tarball, default is 0. set to 1 if you have already made a tarball and want to use it to send to geo. the tarball must exist in the output_dir and its name must be modencode_id.tar.gz\n";
     print "optional yet important parameter: send_to_geo, default is 0 for NOT sending crappy results to geo. must set both make_tarball and send_to_geo to 1 for sending submission to geo happen.\n";
+    print "optional parameter: long_protocol_text, default 0 for using protocol wiki dbfield short description for protocol text, 1 for using protocol wiki text itself, this is an experimental feature since the code does a screen scrap/massage of wiki html, the wiki database is not open yet.\n";
     exit 2;
 }

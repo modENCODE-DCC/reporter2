@@ -16,6 +16,7 @@ my %seriesFH               :ATTR( :name<seriesFH>              :default<undef>);
 my %report_dir             :ATTR( :name<report_dir>            :default<undef>);
 my %reader                 :ATTR( :name<reader>                :default<undef>);
 my %experiment             :ATTR( :name<experiment>            :default<undef>);
+my %long_protocol_text     :ATTR( :name<long_protocol_text>    :default<undef>);
 my %denorm_slots           :ATTR( :set<denorm_slots>           :default<undef>);
 my %ap_slots               :ATTR( :set<ap_slots>               :default<undef>);
 my %first_extraction_slot  :ATTR( :set<first_extraction_slot>  :deafult<undef>);
@@ -37,12 +38,13 @@ my %sex                    :ATTR( :set<sex>                    :default<undef>);
 my %antibody               :ATTR( :set<antibody>               :default<undef>);
 my %molecule_type          :ATTR( :set<molecule_type>          :default<undef>);
 my %groups                 :ATTR( :set<groups>                 :default<undef>);
-my %long_protocol_text     :ATTR( :name<long_protocol_text>    :default<undef>);
+my %num_of_rows            :ATTR( :name<num_of_rows>           :default<undef>);
 
 sub BUILD {
     my ($self, $ident, $args) = @_;
     for my $parameter (qw[config unique_id sampleFH seriesFH report_dir reader experiment long_protocol_text]) {
-	my $value = $args->{$parameter} || croak "can not find required parameter $parameter"; 
+	my $value = $args->{$parameter};
+	defined $value || croak "can not find required parameter $parameter"; 
 	my $set_func = "set_" . $parameter;
 	$self->$set_func($value);
     }
@@ -51,7 +53,7 @@ sub BUILD {
 
 sub get_all {
     my $self = shift;
-    for my $parameter (qw[denorm_slots ap_slots first_extraction_slot last_extraction_slot project lab contributors experiment_design experiment_type organism strain cellline devstage genotype transgene tissue sex molecule_type factors groups antibody]) {
+    for my $parameter (qw[denorm_slots ap_slots first_extraction_slot last_extraction_slot project lab contributors experiment_design experiment_type organism strain cellline devstage genotype transgene tissue sex molecule_type factors groups antibody num_of_rows]) {
 	my $get_func = "get_" . $parameter;
 	$self->$get_func();
     }
@@ -500,6 +502,11 @@ sub get_experiment_type {
 sub get_denorm_slots {
     my $self = shift;
     $denorm_slots{ident $self} = $reader{ident $self}->get_denormalized_protocol_slots(); 
+}
+
+sub get_num_of_rows {
+    my $self = shift;
+    return scalar @{$denorm_slots{ident $self}->[0]};
 }
 
 sub get_biological_source {
