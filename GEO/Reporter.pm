@@ -38,7 +38,7 @@ my %sex                    :ATTR( :set<sex>                    :default<undef>);
 my %antibody               :ATTR( :set<antibody>               :default<undef>);
 my %molecule_type          :ATTR( :set<molecule_type>          :default<undef>);
 my %groups                 :ATTR( :set<groups>                 :default<undef>);
-my %num_of_rows            :ATTR( :name<num_of_rows>           :default<undef>);
+my %num_of_rows            :ATTR( :set<num_of_rows>            :default<undef>);
 
 sub BUILD {
     my ($self, $ident, $args) = @_;
@@ -187,9 +187,9 @@ sub write_sample_description {
     my $sampleFH = $sampleFH{ident $self};
     my $ip_ap = $denorm_slots{ident $self}->[$ap_slots{ident $self}->{'immunoprecipitation'}]->[$row];
     my $antibodies;
-    my $ok = eval { $antibodies = _get_datum_by_info($ip_ap, 'input', 'name', 'antibody') };
+    eval { $antibodies = _get_datum_by_info($ip_ap, 'input', 'name', 'antibody') };
     my $ch=$channel+1;
-    if ($ok) {
+    if ($antibodies) {
 	my @output_antibody_dbfields = ('official name', 'target name', 'host', 'antigen', 'clonal', 'purified', 'company', 'catalog', 'reference', 'short description');
 	for my $antibody (@$antibodies) {
 	    my $str = "!Sample_description = ";
@@ -358,7 +358,7 @@ sub get_overall_design {
     my $real_factors = $self->get_real_factors();
     my $factors = join("; ", @$real_factors);
     $overall_design .= " EXPERIMENTAL FACTORS: " . $factors;
-    
+
     return $overall_design;
 }
 
@@ -432,8 +432,10 @@ sub get_real_factors {
 	$rfactor = 'Developmental Stage ' . $devstage{ident $self} if ( $type =~ /dev/i || $type =~ /stage/i);
 	$rfactor = 'Tissue ' . $tissue{ident $self} if $type =~ /tissue/i;
 	$rfactor = 'Sex ' . $sex{ident $self} if $type =~ /sex/i;
-	my $antibody_name = get_dbfield_info($antibody{ident $self})->{'official name'};
-	$rfactor = 'Antibody ' . $antibody_name if $type =~ /antibody/i;
+	if ( $type =~ /antibody/i ) {
+	    my $antibody_name = get_dbfield_info($antibody{ident $self})->{'official name'};
+	    $rfactor = 'Antibody ' . $antibody_name;
+	}
 	$rfactor = 'Gene' . $factors->{$rank}->[0] if $type =~ /gene/i;
 	push @rfactors, $rfactor if defined($rfactor);
     }
@@ -506,7 +508,7 @@ sub get_denorm_slots {
 
 sub get_num_of_rows {
     my $self = shift;
-    return scalar @{$denorm_slots{ident $self}->[0]};
+    $num_of_rows{ident $self} = scalar @{$denorm_slots{ident $self}->[0]};
 }
 
 sub get_biological_source {
@@ -541,6 +543,10 @@ sub get_replicate_status {
 
     my $extraction_array = $self->get_extraction_array_status();
     my $dye_swap_status;
+    unless ( $antibody{ident $self} ) { #no antibody info
+	#$str .= 'Unknown dye swap status.'; #do not output 'Unknown'
+	return $str;
+    }
     if ( $ap_slots{ident $self}->{'immunoprecipitation'} ) {
 	$dye_swap_status = $self->get_dye_swap_status();
     }
@@ -601,7 +607,7 @@ sub get_dye_swap_status { # an immunoprecipitation protocol must exist before ca
 		if ( $antibody && (is_antibody($antibody) == 1) && ($label->get_value() =~ /cy3/i) ) { #antibody and cy3
 		    $cy3_with_antibody = 1;
 		}
-		if ( (is_antibody($antibody) != 1) && ($label->get_value() =~ /cy5/i) ) { #cy5 but not antibody
+		if ( $antibody && (is_antibody($antibody) != 1) && ($label->get_value() =~ /cy5/i) ) { #cy5 but not antibody
                     $cy5_without_antibody = 1;
                 }
 	    }
@@ -870,9 +876,13 @@ sub get_molecule_type_row {
 sub get_antibody {
     my $self = shift;
     if ($ap_slots{ident $self}->{'immunoprecipitation'}) {
-	for my $row (@{$groups{ident $self}->{0}->{0}}) {
+     	for my $row (@{$groups{ident $self}->{0}->{0}}) {
+	    print "row is $row\n";
 	    my $ab = $self->get_antibody_row($row);
+	    print "ab is $ab\n";
 	    if ($ab) {
+		print "is antibody :", is_antibody($ab), "\n";
+		print get_dbfield_info($ab)->{'official name'}, "\n";
 		if ( is_antibody($ab) != -1 ) { #negative control or real antibody 
 		    $antibody{ident $self} = $ab;
 		}
