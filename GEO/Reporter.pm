@@ -17,6 +17,7 @@ my %report_dir             :ATTR( :name<report_dir>            :default<undef>);
 my %reader                 :ATTR( :name<reader>                :default<undef>);
 my %experiment             :ATTR( :name<experiment>            :default<undef>);
 my %long_protocol_text     :ATTR( :name<long_protocol_text>    :default<undef>);
+my %normalized_slots       :ATTR( :set<normalized_slots>       :default<undef>);
 my %denorm_slots           :ATTR( :set<denorm_slots>           :default<undef>);
 my %ap_slots               :ATTR( :set<ap_slots>               :default<undef>);
 my %first_extraction_slot  :ATTR( :set<first_extraction_slot>  :deafult<undef>);
@@ -39,6 +40,9 @@ my %antibody               :ATTR( :set<antibody>               :default<undef>);
 my %molecule_type          :ATTR( :set<molecule_type>          :default<undef>);
 my %groups                 :ATTR( :set<groups>                 :default<undef>);
 my %num_of_rows            :ATTR( :set<num_of_rows>            :default<undef>);
+my %extract_name_ap_slot   :ATTR( :set<extract_name_ap_slot>   :default<undef>);
+my %sample_name_ap_slot    :ATTR( :set<sample_name_ap_slot>    :default<undef>);
+my %source_name_ap_slot    :ATTR( :set<sourcr_name_ap_slot>    :default<undef>);
 
 sub BUILD {
     my ($self, $ident, $args) = @_;
@@ -53,10 +57,24 @@ sub BUILD {
 
 sub get_all {
     my $self = shift;
-    for my $parameter (qw[denorm_slots ap_slots first_extraction_slot last_extraction_slot project lab contributors experiment_design experiment_type organism strain cellline devstage genotype transgene tissue sex molecule_type factors groups antibody num_of_rows]) {
+    for my $parameter (qw[normalized_slots denorm_slots ap_slots first_extraction_slot last_extraction_slot project lab contributors experiment_design experiment_type organism strain cellline devstage genotype transgene tissue sex molecule_type factors groups antibody num_of_rows]) {
 	my $get_func = "get_" . $parameter;
 	$self->$get_func();
     }
+    for (my $i = 0; $i < scalar(@{$normalized_slots{ident $self}}); $i++) {
+	my $protocol_slot = $normalized_slots{ident $self}->[$i];
+	print "number of nr ap in $i slot: ", scalar @$protocol_slot, "\n";
+	if ( $i == 2 ) {
+	    for my $ap (@$protocol_slot) {
+		for my $datum (@{$ap->get_output_data()} ) {
+		    print "heading ", $datum->get_heading, " value ", $datum->get_value(), "\n";
+		    print "data is anonymous: ", $datum->is_anonymous(), "\n";
+		}
+	    }
+	}
+    }
+    print Dumper($groups{ident $self});
+    
 }
 
 sub chado2series {
@@ -499,6 +517,11 @@ sub get_experiment_type {
     } else {
 	$experiment_type{ident $self} = "tiling array analysis";
     }
+}
+
+sub get_normalized_slots {
+    my $self = shift;
+    $normalized_slots{ident $self} = $reader{ident $self}->get_normalized_protocol_slots();
 }
 
 sub get_denorm_slots {
@@ -1270,11 +1293,66 @@ sub get_slotnum_by_protocol_property {
     return @slots;
 }
 
+sub ap_slot_without_real_data {
+    my ($self, $ap_slot) = @_;
+    my $anonymous = 1;
+    for (my $i = 0; $i < scalar(@{$normalized_slots{ident $self}->[$ap_slot]}); $i++) {
+	last if $anonymous == 0;
+	for my $datum (@{$normalized_slots{ident $self}->[$ap_slot]->[$i]->get_output_data}) {
+	    $anonymous = 0 and last unless $datum->is_anonymous;
+	}
+    }
+    return $anonymous;
+}
+
+sub get_extract_name_ap_slot {
+    my $self = shift;
+    my $text = 'Extract Name';
+    $extract_name_ap_slot{ident $self} = $self->get_ap_slot_by_datum_info('output', 'heading', $text);
+}
+
+sub get_sample_name_ap_slot {
+    my $self = shift;
+    my $text = 'Sample Name';
+    $sample_name_ap_slot{ident $self} = $self->get_ap_slot_by_datum_info('output', 'heading', $text);
+}
+
+sub get_source_name_ap_slot {
+    my $self = shift;
+    my $text = 'Source Name';
+    $source_name_ap_slot{ident $self} = $self->get_ap_slot_by_datum_info('output', 'heading', $text);
+}
+
+sub get_ap_slot_by_datum_info {
+    my ($self, $direction, $field, $fieldtext) = @_;
+    for my $ap_slot (@{$normalized_slots{ident $self}}) {
+	my $ap = $ap_slot->[0];
+	eval { _get_datum_by_info($ap, $direction, $field, $fieldtext) };
+	return $ap_slot unless $@;
+    }
+}
+
+sub group_by_this_ap_slot {
+    my $self = shift;
+    my $extract_name_col = $self->get_extract_name_ap_slot();
+    my $sample_name_col = $self->get_sample_name_ap_slot();
+    my $source_name_col = $self->get_source_name_ap_slot();
+    if ( $self->ap_slot_without_real_data($last_extraction_slot{ident $self}) ) {
+	return $extract_name_col if defined($extract_name_col);
+	return $sample_name_col if defined($sample_name_col);
+	return $source_name_col if defined($source_name_col);
+	croak("suspicious submission, extraction protocol has only anonymous data, AND no protocol has
+Extract Name, Sample Name, Source(Hybrid) Name.");
+    } else {
+	return $last_extraction_slot{ident $self};
+    }
+}
+
 sub get_groups {
     my $self = shift;
     my $denorm_slots = $denorm_slots{ident $self};
     my $ap_slots = $ap_slots{ident $self};
-    my $last_extraction_slot = $last_extraction_slot{ident $self};
+    my $last_extraction_slot = $self->group_by_this_ap_slot();
 
     my ($nr_grp, $all_grp) = $self->group_applied_protocols($denorm_slots->[$last_extraction_slot], 1);
     my $all_grp_by_array;
@@ -1282,6 +1360,8 @@ sub get_groups {
 								     'input', 'name', '\s*array\s*')};
     $all_grp_by_array = $self->group_applied_protocols_by_data($denorm_slots->[$ap_slots->{'hybridization'}],
 							       'input', 'name', 'adf') unless $ok;
+    print Dumper($all_grp);
+    print Dumper($all_grp_by_array);
     my %combined_grp;
     while (my ($row, $extract_grp) = each %$all_grp) {
 	my $array_grp = $all_grp_by_array->{$row};
@@ -1292,7 +1372,7 @@ sub get_groups {
 	    for my $that_row (@{$combined_grp{$extract_grp}{$array_grp}}) {
 		my $that_extract_ap = $denorm_slots->[$last_extraction_slot]->[$that_row];
 		my $that_hyb_ap = $denorm_slots->[$ap_slots->{'hybridization'}]->[$that_row];
-		$ignore = 1 and last if ($this_extract_ap->equals($that_extract_ap) && $this_hyb_ap->equals($that_hyb_ap));
+		$ignore = 1 and print "ignored $row!\n" and last if ($this_extract_ap->equals($that_extract_ap) && $this_hyb_ap->equals($that_hyb_ap));
 	    }
 	    push @{$combined_grp{$extract_grp}{$array_grp}}, $row unless $ignore;
 	} else {
