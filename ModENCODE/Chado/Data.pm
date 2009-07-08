@@ -377,6 +377,11 @@ sub set_termsource {
   $termsource{ident $self} = $termsource;
 }
 
+sub set_anonymous {
+    my $self = shift;
+    $anonymous{ident $self} = 1;
+}
+
 sub add_attribute {
   my ($self, $attribute) = @_;
   ($attribute->isa('ModENCODE::Chado::Attribute')) or croak("Can't add a " . ref($attribute) . " as a attribute.");
