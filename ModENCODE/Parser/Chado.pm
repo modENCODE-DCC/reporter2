@@ -502,6 +502,8 @@ sub get_datum {
   $datum->set_termsource($termsource) if $termsource;
   my $type = $self->get_type($row->{'type_id'});
   $datum->set_type($type) if $type;
+  #set anonymous if needed
+  $datum->set_anonymous() if $row->{'heading'} =~ /^Anonymous Datum/i;
 
   $sth = $self->get_prepared_query("SELECT wiggle_data_id FROM data_wiggle_data WHERE data_id = ?");
   $sth->execute($datum_id);
