@@ -57,24 +57,15 @@ sub BUILD {
 
 sub get_all {
     my $self = shift;
-    for my $parameter (qw[normalized_slots denorm_slots ap_slots first_extraction_slot last_extraction_slot source_name_ap_slot sample_name_ap_slot extract_name_ap_slot project lab contributors experiment_design experiment_type organism strain cellline devstage genotype transgene tissue sex molecule_type factors groups antibody num_of_rows]) {
+    for my $parameter (qw[normalized_slots denorm_slots ap_slots first_extraction_slot last_extraction_slot source_name_ap_slot sample_name_ap_slot extract_name_ap_slot groups project lab contributors experiment_design experiment_type organism strain cellline devstage genotype transgene tissue sex molecule_type factors antibody num_of_rows]) {
 	my $get_func = "get_" . $parameter;
 	$self->$get_func();
     }
     for (my $i = 0; $i < scalar(@{$normalized_slots{ident $self}}); $i++) {
 	my $protocol_slot = $normalized_slots{ident $self}->[$i];
 	print "number of nr ap in $i slot: ", scalar @$protocol_slot, "\n";
-	if ( $i == $last_extraction_slot{ident $self} ) {
-	    for my $ap (@$protocol_slot) {
-		for my $datum (@{$ap->get_output_data()} ) {
-		    print "heading ", $datum->get_heading, " value ", $datum->get_value(), "\n";
-		    print "data is anonymous: ", $datum->is_anonymous(), "\n";
-		}
-	    }
-	}
     }
-    print 'groups: ', Dumper($groups{ident $self});
-    
+    print 'groups: ', Dumper($groups{ident $self});    
 }
 
 sub chado2series {
@@ -594,18 +585,18 @@ sub get_replicate_status {
     my $no_dye_swap = 1;
     for my $extraction (sort keys %$extraction_array) {
 	my $replica = $extraction+1;
-	$str .= "Replicate $replica applied to " . $extraction_array->{$extraction} . " array(s), ";
+	#$str .= "Replicate $replica applied to " . $extraction_array->{$extraction} . " array(s), ";
 	if ( defined($dye_swap_status) ) {
 	    for my $array (sort keys %{$dye_swap_status->{$extraction}}) {
 		if ($dye_swap_status->{$extraction}->{$array} == 1) {
 		    my $sample = $self->get_sample_name_safe($extraction, $array);
-		    $str .= "Replicate $replica (Sample $sample) is dye swap. ";
+		    #$str .= "Replicate $replica (Sample $sample) is dye swap. ";
 		    $no_dye_swap = 0;
 		}
 	    }
 	}
     }
-    $str .= 'No dye swap.' if $no_dye_swap;
+    #$str .= 'No dye swap.' if $no_dye_swap;
     return $str;
 }
 
@@ -1403,7 +1394,6 @@ sub group_by_this_ap_slot {
     my $extract_name_col = $extract_name_ap_slot{ident $self};
     my $sample_name_col = $sample_name_ap_slot{ident $self};
     my $source_name_col = $source_name_ap_slot{ident $self};
-    print $source_name_col;
     if ( $self->ap_slot_without_real_data($last_extraction_slot{ident $self}) ) {
 	print "last extraction protocol has no real data\n";
 	#first use source name, since most experiment replicates are of biological replicates
@@ -1421,7 +1411,6 @@ sub get_groups {
     my $denorm_slots = $denorm_slots{ident $self};
     my $ap_slots = $ap_slots{ident $self};
     my ($last_extraction_slot, $method) = @{$self->group_by_this_ap_slot()};
-    print $last_extraction_slot, $method, "\n";
     my ($nr_grp, $all_grp, $all_grp_by_array);
     if ( $method eq 'protocol' ) {
 	($nr_grp, $all_grp) = $self->group_applied_protocols($denorm_slots->[$last_extraction_slot], 1);
@@ -1518,7 +1507,6 @@ sub get_protocol_text {
 	    $title = $1;
 	}
       	$title =~ s/_/ /g;
-	print $url, " $title\n";
 	return $title . " protocol; " . decode_entities($self->_get_full_protocol_text($url));
     }
     else {
