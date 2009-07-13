@@ -1386,7 +1386,7 @@ sub get_sample_name_ap_slot {
 sub get_source_name_ap_slot {
     my $self = shift;
     my $text = 'Source Name';
-    $source_name_ap_slot{ident $self} = $self->get_ap_slot_by_datum_info('output', 'heading', $text);
+    $source_name_ap_slot{ident $self} = $self->get_ap_slot_by_datum_info('input', 'heading', $text);
 }
 
 sub get_ap_slot_by_datum_info {
