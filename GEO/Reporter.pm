@@ -1405,9 +1405,10 @@ sub group_by_this_ap_slot {
     my $source_name_col = $self->get_source_name_ap_slot();
     if ( $self->ap_slot_without_real_data($last_extraction_slot{ident $self}) ) {
 	print "last extraction protocol has no real data\n";
+	#first use source name, since most experiment replicates are of biological replicates
+	return [$source_name_col, 'Source\s*Name'] if defined($source_name_col);
 	return [$extract_name_col, 'Extract\s*Name'] if defined($extract_name_col);
 	return [$sample_name_col, 'Sample\s*Name'] if defined($sample_name_col);
-	return [$source_name_col, 'Source\s*Name'] if defined($source_name_col);
 	croak("suspicious submission, extraction protocol has only anonymous data, AND no protocol has
 Extract Name, Sample Name, Source(Hybrid) Name.");
     } else {
@@ -1425,7 +1426,7 @@ sub get_groups {
     if ( $method eq 'protocol' ) {
 	($nr_grp, $all_grp) = $self->group_applied_protocols($denorm_slots->[$last_extraction_slot], 1);
     } else {
-	if ($method eq 'Source Name') {
+	if ($method =~ /Source\s*Name/) {
 	    $self->group_applied_protocols_by_data($denorm_slots->[$last_extraction_slot], 'input', 'heading', $method);
 	} else { #extract name and sample name are treated by validator as output
 	    $self->group_applied_protocols_by_data($denorm_slots->[$last_extraction_slot], 'output', 'heading', $method);
