@@ -73,7 +73,7 @@ sub get_all {
 	    }
 	}
     }
-    print Dumper($groups{ident $self});
+    print 'groups: ', Dumper($groups{ident $self});
     
 }
 
@@ -1437,8 +1437,8 @@ sub get_groups {
 								     'input', 'name', '\s*array\s*')};
     $all_grp_by_array = $self->group_applied_protocols_by_data($denorm_slots->[$ap_slots->{'hybridization'}],
 							       'input', 'name', 'adf') unless $ok;
-    print Dumper($all_grp);
-    print Dumper($all_grp_by_array);
+    print 'all groups:', Dumper($all_grp);
+    print 'all groups by array:', Dumper($all_grp_by_array);
     my %combined_grp;
     while (my ($row, $extract_grp) = each %$all_grp) {
 	my $array_grp = $all_grp_by_array->{$row};
