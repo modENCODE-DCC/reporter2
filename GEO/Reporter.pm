@@ -64,7 +64,7 @@ sub get_all {
     for (my $i = 0; $i < scalar(@{$normalized_slots{ident $self}}); $i++) {
 	my $protocol_slot = $normalized_slots{ident $self}->[$i];
 	print "number of nr ap in $i slot: ", scalar @$protocol_slot, "\n";
-	if ( $i == 2 ) {
+	if ( $i == $last_extraction_slot{ident $self} ) {
 	    for my $ap (@$protocol_slot) {
 		for my $datum (@{$ap->get_output_data()} ) {
 		    print "heading ", $datum->get_heading, " value ", $datum->get_value(), "\n";
@@ -366,10 +366,19 @@ sub get_overall_design {
     my $self = shift;
     my $overall_design = "";
     $overall_design .= "EXPERIMENT TYPE: " . $experiment_type{ident $self} . ". ";
-
-    my $biological_source = $self->get_biological_source();
-    my $source = join("; ", @$biological_source);
-    $overall_design .= 'BIOLOGICAL SOURCE: ' . $source;
+    
+    my ($biological_source, $source);
+    if ( $experiment_type{ident $self} eq 'CGH' ) {
+	$biological_source = $self->get_biological_source_CGH();
+	for (my $i=0; $i<scalar(@$biological_source); $i++) {
+	    $source = join("; ", @{$biological_source->[$i]});
+	    $overall_design .= "BIOLOGICAL SOURCE " . $i+1 . ": " . $source;
+	}
+    } else {
+	$biological_source = $self->get_biological_source();
+	$source = join("; ", @$biological_source);
+	$overall_design .= 'BIOLOGICAL SOURCE: ' . $source;
+    }
 
     $overall_design .= " " . $self->get_replicate_status();
 
@@ -539,6 +548,15 @@ sub get_biological_source {
     return $self->get_biological_source_row(0);
 }
 
+sub get_biological_source_CGH {
+    my $self = shift;
+    my @biological_source_CGH;
+    for my $row ( @{ $groups{ ident $self }->{0}->{0} } ) {
+     	push @biological_source_CGH, $self->get_biological_source_row($row);
+    }
+    return \@biological_source_CGH;
+}
+
 sub get_biological_source_row {
     my ($self, $row) = @_;
     my @str;
@@ -652,7 +670,10 @@ sub get_organism {
 
 sub get_strain {
     my $self = shift;
-    $strain{ident $self} = $self->get_strain_row(0);
+    for my $row (@{$groups{ident $self}->{0}->{0}}) {
+	my $strain = $self->get_strain_row($row);
+	$strain{ident $self} = $strain and last if defined($strain);
+    }
 }
 
 sub get_strain_row {
@@ -709,7 +730,10 @@ sub get_strain_row {
 
 sub get_cellline {
     my $self = shift;
-    $cellline{ident $self} = $self->get_cellline_row(0);
+    for my $row (@{$groups{ident $self}->{0}->{0}}) {
+	my $cellline = $self->get_cellline_row($row);
+	$cellline{ident $self} = $cellline and last if defined($cellline);
+    }
 }
 
 sub get_cellline_row {
@@ -740,7 +764,10 @@ sub get_cellline_row {
 
 sub get_devstage {
     my $self = shift;
-    $devstage{ident $self} = $self->get_devstage_row(0);
+    for my $row (@{$groups{ident $self}->{0}->{0}}) {
+	my $devstage = $self->get_devstage_row($row);
+	$devstage{ident $self} = $devstage and last if defined($devstage);
+    }
 }
 
 sub get_devstage_row {
@@ -776,7 +803,10 @@ sub get_devstage_row {
 
 sub get_genotype {
     my $self = shift;
-    $genotype{ident $self} = $self->get_genotype_row(0);
+    for my $row (@{$groups{ident $self}->{0}->{0}}) {
+	my $genotype = $self->get_genotype_row($row);
+	$genotype{ident $self} = $genotype and last if defined($genotype);
+    }
 }
 
 sub get_genotype_row {
@@ -799,7 +829,10 @@ sub get_genotype_row {
 
 sub get_transgene {
     my $self = shift;
-    $transgene{ident $self} = $self->get_transgene_row(0);
+    for my $row (@{$groups{ident $self}->{0}->{0}}) {
+	my $transgene = $self->get_transgene_row($row);
+	$transgene{ident $self} = $transgene and last if defined($transgene);
+    }
 }
 
 sub get_transgene_row {
@@ -822,7 +855,10 @@ sub get_transgene_row {
 
 sub get_sex {
     my $self = shift;
-    $sex{ident $self} = $self->get_sex_row(0);
+    for my $row (@{$groups{ident $self}->{0}->{0}}) {
+	my $sex = $self->get_sex_row($row);
+	$sex{ident $self} = $sex if defined($sex);
+    }
 }
 
 sub get_sex_row {
@@ -849,7 +885,10 @@ sub get_sex_row {
 
 sub get_tissue {
     my $self = shift;
-    $tissue{ident $self} = $self->get_tissue_row(0);
+    for my $row (@{$groups{ident $self}->{0}->{0}}) {
+	my $tissue = $self->get_tissue_row(0);
+	$tissue{ident $self} = $tissue and last if defined($tissue);
+    }
 }
 
 sub get_tissue_row {
@@ -872,7 +911,10 @@ sub get_tissue_row {
 
 sub get_molecule_type {
     my $self = shift;
-    $molecule_type{ident $self} = $self->get_molecule_type_row(0);
+    for my $row (@{$groups{ident $self}->{0}->{0}}) {
+	my $molecule_type = $self->get_molecule_type_row($row);
+	$molecule_type{ident $self} = $molecule_type if defined($molecule_type);
+    }
 }
 
 sub get_molecule_type_row {
@@ -1338,6 +1380,7 @@ sub group_by_this_ap_slot {
     my $sample_name_col = $self->get_sample_name_ap_slot();
     my $source_name_col = $self->get_source_name_ap_slot();
     if ( $self->ap_slot_without_real_data($last_extraction_slot{ident $self}) ) {
+	print "last extraction protocol has no real data\n";
 	return $extract_name_col if defined($extract_name_col);
 	return $sample_name_col if defined($sample_name_col);
 	return $source_name_col if defined($source_name_col);
@@ -1432,9 +1475,16 @@ sub get_protocol_text {
     my $protocol = $ap->get_protocol();
     if ( $self->get_long_protocol_text() ) {
 	my $url = $protocol->get_termsource()->get_accession();
-	$url =~ /\?title=(\w+):?/;
-	my $title = $1;
-	$title =~ s/_/ /g;
+	my $title;
+	if ( $url =~ /\?title=\w+\// ) {
+    	    $url =~ /\?title=\w+\/(\w+):?/;
+	    $title = $1;
+	} else {
+	    $url =~ /\?title=(\w+):?/;
+	    $title = $1;
+	}
+      	$title =~ s/_/ /g;
+	print $url, " $title\n";
 	return $title . " protocol; " . decode_entities($self->_get_full_protocol_text($url));
     }
     else {
@@ -1487,7 +1537,8 @@ sub _get_full_protocol_text {
 
     $txt =~ s/(.*)Validation\s*Form.*/{$txt = $1;}/gsex; #find the last match, just in case
     $txt =~ s/(.*)Notes\s*\n.*/{$txt = $1;}/gsex;
-    $txt =~ s/Protocol\s*Text\s*-*\s*//i;
+    $txt =~ s/Protocol\s*Text(\s*-*\s*)?//i;
+    $txt =~ s/\[edit\]//i;
     $txt =~ s/ +/ /g;
     return $txt;    
 }
