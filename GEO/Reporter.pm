@@ -1050,6 +1050,27 @@ sub get_array_row {
     return $gpl;
 }
 
+sub get_slotnum_source_name {
+    my $self = shift;
+    my @aps = $self->get_slotnum_by_datum_property('output', 0, 'heading', undef, 'Source Name');
+    return $aps[0] if scalar(@aps);
+    return undef;
+}
+
+sub get_slotnum_sample_name {
+    my $self = shift;
+    my @aps = $self->get_slotnum_by_datum_property('output', 0, 'heading', undef, 'Sample Name');
+    return $aps[0] if scalar(@aps);
+    return undef;
+}
+
+sub get_slotnum_extract_name {
+    my $self = shift;
+    my @aps = $self->get_slotnum_by_datum_property('output', 0, 'heading', undef, 'Extract Name');
+    return $aps[0] if scalar(@aps);
+    return undef;
+}
+
 sub get_sample_name_safe {
     my ($self, $extraction, $array) = @_;
     my $row = $groups{ident $self}->{$extraction}->{$array}->[0];
@@ -1159,6 +1180,9 @@ sub get_ap_slots {
     $slots{'normalization'} = $self->get_slotnum_normalize();
     $slots{'raw'} = $self->get_slotnum_raw();
     $slots{'immunoprecipitation'} = $self->get_slotnum_ip();
+    $slots{'source name'} = $self->get_slotnum_source_name();
+    $slots{'sample name'} = $self->get_slotnum_sample_name();
+    $slots{'extract name'} = $self->get_slotnum_extract_name();    
     $ap_slots{ident $self} = \%slots;
 }
 
@@ -1381,13 +1405,13 @@ sub group_by_this_ap_slot {
     my $source_name_col = $self->get_source_name_ap_slot();
     if ( $self->ap_slot_without_real_data($last_extraction_slot{ident $self}) ) {
 	print "last extraction protocol has no real data\n";
-	return $extract_name_col if defined($extract_name_col);
-	return $sample_name_col if defined($sample_name_col);
-	return $source_name_col if defined($source_name_col);
+	return [$extract_name_col, 'Extract\s*Name'] if defined($extract_name_col);
+	return [$sample_name_col, 'Sample\s*Name'] if defined($sample_name_col);
+	return [$source_name_col, 'Source\s*Name'] if defined($source_name_col);
 	croak("suspicious submission, extraction protocol has only anonymous data, AND no protocol has
 Extract Name, Sample Name, Source(Hybrid) Name.");
     } else {
-	return $last_extraction_slot{ident $self};
+	return [$last_extraction_slot{ident $self}, 'protocol'];
     }
 }
 
@@ -1395,10 +1419,19 @@ sub get_groups {
     my $self = shift;
     my $denorm_slots = $denorm_slots{ident $self};
     my $ap_slots = $ap_slots{ident $self};
-    my $last_extraction_slot = $self->group_by_this_ap_slot();
+    my ($last_extraction_slot, $method) = @{$self->group_by_this_ap_slot()};
 
-    my ($nr_grp, $all_grp) = $self->group_applied_protocols($denorm_slots->[$last_extraction_slot], 1);
-    my $all_grp_by_array;
+    my ($nr_grp, $all_grp, $all_grp_by_array);
+    if ( $method eq 'protocol' ) {
+	($nr_grp, $all_grp) = $self->group_applied_protocols($denorm_slots->[$last_extraction_slot], 1);
+    } else {
+	if ($method eq 'Source Name') {
+	    $self->group_applied_protocols_by_data($denorm_slots->[$last_extraction_slot], 'input', 'heading', $method);
+	} else { #extract name and sample name are treated by validator as output
+	    $self->group_applied_protocols_by_data($denorm_slots->[$last_extraction_slot], 'output', 'heading', $method);
+	}
+    }
+    
     my $ok = eval {$all_grp_by_array = $self->group_applied_protocols_by_data($denorm_slots->[$ap_slots->{'hybridization'}],
 								     'input', 'name', '\s*array\s*')};
     $all_grp_by_array = $self->group_applied_protocols_by_data($denorm_slots->[$ap_slots->{'hybridization'}],
