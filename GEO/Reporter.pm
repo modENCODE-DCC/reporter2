@@ -543,6 +543,8 @@ sub get_biological_source_CGH {
     my $self = shift;
     my @biological_source_CGH;
     for my $row ( @{ $groups{ ident $self }->{0}->{0} } ) {
+	print "row $row #################\n";
+	print @{$self->get_biological_source_row($row)};
      	push @biological_source_CGH, $self->get_biological_source_row($row);
     }
     return \@biological_source_CGH;
@@ -1416,6 +1418,8 @@ sub get_groups {
 	($nr_grp, $all_grp) = $self->group_applied_protocols($denorm_slots->[$last_extraction_slot], 1);
     } else {
 	if ($method eq 'Source\s*Name') {
+	    print "Using Source Name\n";
+	    print "Using protocol slot $last_extraction_slot\n";
 	    $all_grp = $self->group_applied_protocols_by_data($denorm_slots->[$last_extraction_slot], 'input', 'heading', $method);
 	} else { #extract name and sample name are treated by validator as output
 	    $all_grp = $self->group_applied_protocols_by_data($denorm_slots->[$last_extraction_slot], 'output', 'heading', $method);
@@ -1432,13 +1436,14 @@ sub get_groups {
     while (my ($row, $extract_grp) = each %$all_grp) {
 	my $array_grp = $all_grp_by_array->{$row};
 	if (exists $combined_grp{$extract_grp}{$array_grp}) {
-	    my $this_extract_ap = $denorm_slots->[$last_extraction_slot]->[$row];
-	    my $this_hyb_ap = $denorm_slots->[$ap_slots->{'hybridization'}]->[$row];
-	    my $ignore = 0;
+	    my $ignore = 0; #possible validator bug might cause repeats of rows in denormalized ap slots
 	    for my $that_row (@{$combined_grp{$extract_grp}{$array_grp}}) {
-		my $that_extract_ap = $denorm_slots->[$last_extraction_slot]->[$that_row];
-		my $that_hyb_ap = $denorm_slots->[$ap_slots->{'hybridization'}]->[$that_row];
-		$ignore = 1 and print "ignored $row!\n" and last if ($this_extract_ap->equals($that_extract_ap) && $this_hyb_ap->equals($that_hyb_ap));
+		last if $ignore;
+	        for (my $i=$last_extraction_slot; $i<=$ap_slots->{'hybridization'}; $i++) {
+		    my $this_ap = $denorm_slots->[$i]->[$row];
+		    my $that_ap = $denorm_slots->[$i]->[$that_row];
+		    $ignore = 1 and last unless $this_ap->equals($that_ap);
+		}
 	    }
 	    push @{$combined_grp{$extract_grp}{$array_grp}}, $row unless $ignore;
 	} else {
@@ -1456,6 +1461,10 @@ sub group_applied_protocols {
 sub group_applied_protocols_by_data {
     my ($self, $ap_slot, $direction, $field, $fieldtext, $rtn) = @_;
     my $data = _get_data_by_info($ap_slot, $direction, $field, $fieldtext);
+    for my $datum (@$data) {
+	print "#################\n";
+	print $datum->get_heading(), $datum->get_value(), $datum->is_anonymous(), "\n";
+    }
     return _group($data, $rtn);
 }
 
