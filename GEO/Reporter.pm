@@ -42,7 +42,8 @@ my %groups                 :ATTR( :set<groups>                 :default<undef>);
 my %num_of_rows            :ATTR( :set<num_of_rows>            :default<undef>);
 my %extract_name_ap_slot   :ATTR( :set<extract_name_ap_slot>   :default<undef>);
 my %sample_name_ap_slot    :ATTR( :set<sample_name_ap_slot>    :default<undef>);
-my %source_name_ap_slot    :ATTR( :set<sourcr_name_ap_slot>    :default<undef>);
+my %source_name_ap_slot    :ATTR( :set<source_name_ap_slot>    :default<undef>);
+my %replicate_group_ap_slot :ATTR( :set<replicate_group_ap_slot>    :default<undef>);
 
 sub BUILD {
     my ($self, $ident, $args) = @_;
@@ -57,7 +58,7 @@ sub BUILD {
 
 sub get_all {
     my $self = shift;
-    for my $parameter (qw[normalized_slots denorm_slots ap_slots first_extraction_slot last_extraction_slot source_name_ap_slot sample_name_ap_slot extract_name_ap_slot groups project lab contributors experiment_design experiment_type organism strain cellline devstage genotype transgene tissue sex molecule_type factors antibody num_of_rows]) {
+    for my $parameter (qw[normalized_slots denorm_slots ap_slots first_extraction_slot last_extraction_slot source_name_ap_slot sample_name_ap_slot extract_name_ap_slot replicate_group_ap_slot groups project lab contributors experiment_design experiment_type organism strain cellline devstage genotype transgene tissue sex molecule_type factors antibody num_of_rows]) {
 	my $get_func = "get_" . $parameter;
 	$self->$get_func();
     }
@@ -358,7 +359,8 @@ sub get_overall_design {
 	$biological_source = $self->get_biological_source_CGH();
 	for (my $i=0; $i<scalar(@$biological_source); $i++) {
 	    $source = join("; ", @{$biological_source->[$i]});
-	    $overall_design .= "BIOLOGICAL SOURCE " . $i+1 . ": " . $source . "; ";
+	    my $tmp = $i+1;
+	    $overall_design .= "BIOLOGICAL SOURCE $tmp" . ": " . $source . "; ";
 	}
     } else {
 	$biological_source = $self->get_biological_source();
@@ -521,7 +523,13 @@ sub get_normalized_slots {
 
 sub get_denorm_slots {
     my $self = shift;
-    $denorm_slots{ident $self} = $reader{ident $self}->get_denormalized_protocol_slots(); 
+    $denorm_slots{ident $self} = $reader{ident $self}->get_denormalized_protocol_slots();
+    #for my $ap_slot (@{$denorm_slots{ident $self}}) {
+#	print "#####\n";
+#	for my $ap (@$ap_slot) {
+#	    print $ap->get_protocol()->get_name(), "\n";
+#	}
+#    }
 }
 
 sub get_num_of_rows {
@@ -538,6 +546,10 @@ sub get_biological_source_CGH {
     my $self = shift;
     my @biological_source_CGH;
     for my $row ( @{ $groups{ ident $self }->{0}->{0} } ) {
+	print "####row:$row\n";
+	for my $bio ( @{$self->get_biological_source_row($row)} ) {
+	    print $bio, "\n";
+	}
      	push @biological_source_CGH, $self->get_biological_source_row($row);
     }
     return \@biological_source_CGH;
@@ -1364,6 +1376,12 @@ sub ap_slot_without_real_data {
     return $anonymous;
 }
 
+sub get_replicate_group_ap_slot {
+    my $self = shift;
+    my $text = 'replicate[\s_]*group';
+    $replicate_group_ap_slot{ident $self} = $self->get_ap_slot_by_attr_info('input', 'name', $text);
+}
+
 sub get_extract_name_ap_slot {
     my $self = shift;
     my $text = 'Extract Name';
@@ -1391,13 +1409,35 @@ sub get_ap_slot_by_datum_info {
     }
 }
 
+sub get_ap_slot_by_attr_info {
+    my ($self, $direction, $field, $fieldtext) = @_;
+    for (my $i=0; $i<scalar @{$normalized_slots{ident $self}}; $i++) {
+        my $ap = $normalized_slots{ident $self}->[$i]->[0];
+	if ( $direction eq 'input' ) {
+	    for my $datum (@{$ap->get_input_data()}) {
+		eval { _get_attr_by_info($datum, $field, $fieldtext) };
+		return $i unless $@;
+	    }
+	} else {
+	    for my $datum (@{$ap->get_output_data()}) {
+                eval { _get_attr_by_info($datum, $field, $fieldtext) };
+		return $i unless $@;
+	    }
+	}
+    }
+}
+
+
+
 sub group_by_this_ap_slot {
     my $self = shift;
+    my $replicate_group_col = $replicate_group_ap_slot{ident $self};
     my $extract_name_col = $extract_name_ap_slot{ident $self};
     my $sample_name_col = $sample_name_ap_slot{ident $self};
     my $source_name_col = $source_name_ap_slot{ident $self};
     if ( $self->ap_slot_without_real_data($last_extraction_slot{ident $self}) ) {
 	#first use source name, since most experiment replicates are of biological replicates
+	return [$replicate_group_col, 'replicate[\s_]*group'] if defined($replicate_group_col);
 	return [$source_name_col, 'Source\s*Name'] if defined($source_name_col);
 	return [$extract_name_col, 'Extract\s*Name'] if defined($extract_name_col);
 	return [$sample_name_col, 'Sample\s*Name'] if defined($sample_name_col);
@@ -1416,7 +1456,10 @@ sub get_groups {
     if ( $method eq 'protocol' ) {
 	($nr_grp, $all_grp) = $self->group_applied_protocols($denorm_slots->[$last_extraction_slot], 1);
     } else {
-	if ($method eq 'Source\s*Name') {
+	if ($method eq 'replicate[\s_]*group') {
+	    $all_grp = $self->group_applied_protocols_by_attr($denorm_slots->[$last_extraction_slot], 'name', $method);
+	}
+	elsif ($method eq 'Source\s*Name') {
 	    $all_grp = $self->group_applied_protocols_by_data($denorm_slots->[$last_extraction_slot], 'input', 'heading', $method);
 	} else { #extract name and sample name are treated by validator as output
 	    $all_grp = $self->group_applied_protocols_by_data($denorm_slots->[$last_extraction_slot], 'output', 'heading', $method);
@@ -1447,6 +1490,7 @@ sub get_groups {
     }
     print Dumper($denorm_slots);
     print Dumper($all_grp);
+    print Dumper(%combined_grp);
     $groups{ident $self} = \%combined_grp;
 }
 
@@ -1457,8 +1501,40 @@ sub group_applied_protocols {
 
 sub group_applied_protocols_by_data {
     my ($self, $ap_slot, $direction, $field, $fieldtext, $rtn) = @_;
+    for my $ap (@$ap_slot) {
+	print $ap->get_protocol->get_name(), "\n";
+	for my $datum (@{$ap->get_input_data}) {
+	    print $datum->get_heading, ":", $datum->get_value, " ";
+	    if ($datum->get_heading eq 'Source Name') {
+		for my $att (@{$datum->get_attributes()}) {
+		    print $att->get_heading, ":", $att->get_value, "\n";
+		}
+	    }
+	}
+	print "\n";
+    }
+    print $direction, $field, $fieldtext, "\n";
     my $data = _get_data_by_info($ap_slot, $direction, $field, $fieldtext);
     return _group($data, $rtn);
+}
+
+sub group_applied_protocols_by_attr {
+    my ($self, $ap_slot, $field, $fieldtext, $rtn) = @_;
+    my @attrs;
+    my $get_func = "get_$field";
+    for my $ap (@$ap_slot) {
+        for my $datum (@{$ap->get_input_data}) {
+	    for my $attr (@{$datum->get_attributes()}) {
+		push @attrs, $attr if $attr->$get_func() =~ /$fieldtext/;
+            }
+        }
+	for my $datum (@{$ap->get_output_data}) {
+            for my $attr (@{$datum->get_attributes()}) {
+                push @attrs, $attr if $attr->$get_func() =~ /$fieldtext/;
+            }
+        }
+    }
+    return _group(\@attrs, $rtn);
 }
 
 sub _group {
