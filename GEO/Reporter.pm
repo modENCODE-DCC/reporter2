@@ -61,11 +61,6 @@ sub get_all {
 	my $get_func = "get_" . $parameter;
 	$self->$get_func();
     }
-    for (my $i = 0; $i < scalar(@{$normalized_slots{ident $self}}); $i++) {
-	my $protocol_slot = $normalized_slots{ident $self}->[$i];
-	print "number of nr ap in $i slot: ", scalar @$protocol_slot, "\n";
-    }
-    print 'groups: ', Dumper($groups{ident $self});    
 }
 
 sub chado2series {
@@ -363,12 +358,12 @@ sub get_overall_design {
 	$biological_source = $self->get_biological_source_CGH();
 	for (my $i=0; $i<scalar(@$biological_source); $i++) {
 	    $source = join("; ", @{$biological_source->[$i]});
-	    $overall_design .= "BIOLOGICAL SOURCE " . $i+1 . ": " . $source;
+	    $overall_design .= "BIOLOGICAL SOURCE " . $i+1 . ": " . $source . "; ";
 	}
     } else {
 	$biological_source = $self->get_biological_source();
 	$source = join("; ", @$biological_source);
-	$overall_design .= 'BIOLOGICAL SOURCE: ' . $source;
+	$overall_design .= 'BIOLOGICAL SOURCE: ' . $source . "; ";
     }
 
     $overall_design .= " " . $self->get_replicate_status();
@@ -543,8 +538,6 @@ sub get_biological_source_CGH {
     my $self = shift;
     my @biological_source_CGH;
     for my $row ( @{ $groups{ ident $self }->{0}->{0} } ) {
-	print "row $row #################\n";
-	print @{$self->get_biological_source_row($row)};
      	push @biological_source_CGH, $self->get_biological_source_row($row);
     }
     return \@biological_source_CGH;
@@ -736,18 +729,20 @@ sub get_cellline_row {
 	for my $datum (@{$ap->get_input_data()}) {
 	    my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
 	    if (lc($name) =~ /^\s*cell[_\s]*line\s*$/) {
-		$value =~ /[Cc]ell[Ll]ine:(.*?):/;
-		my $tmp = uri_unescape($1);
-		$tmp =~ s/_/ /g;
-		return $tmp;
-	    }
-	    for my $attr (@{$datum->get_attributes()}) {
-		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
-		if (lc($aname) =~ /^\s*cell[_\s]*line\s*$/) {
-		    $avalue =~ /[Cc]ell[Ll]ine:(.*?):/;
+		if ( $value =~ /[Cc]ell[Ll]ine:(.*?):/ ) {
 		    my $tmp = uri_unescape($1);
 		    $tmp =~ s/_/ /g;
 		    return $tmp;
+		}
+	    }
+	    for my $attr (@{$datum->get_attributes()}) {
+		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
+		if (lc($aname) =~ /^cell[_\s]*line/) {
+		    if ( $avalue =~ /[Cc]ell[Ll]ine:(.*?):/ ) {
+			my $tmp = uri_unescape($1);
+			$tmp =~ s/_/ /g;
+			return $tmp;
+		    }
 		}
 	    }
 	}
@@ -770,20 +765,17 @@ sub get_devstage_row {
 	for my $datum (@{$ap->get_input_data()}) {
 	    my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
 	    if (lc($name) =~ /^\s*stage\s*$/) {
-		$value =~ /[Dd]ev[Ss]tage:(.*?):/;
-		my $tmp = uri_unescape($1);
-		$tmp =~ s/_/ /g;
-		return $tmp;
+    		if ( $value =~ /[Dd]ev[Ss]tage:(.*?):/ ) {
+		    my $tmp = uri_unescape($1);
+		    $tmp =~ s/_/ /g;
+		    return $tmp;
+		}
 	    }
 	    for my $attr (@{$datum->get_attributes()}) {
 		my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
-		if (lc($aname) =~ /^\s*dev.*stage\s*$/) {
+		if (lc($aname) =~ /dev.*stage/) {
 		    if ( $avalue =~ /[Dd]ev[Ss]tage:(.*?):/ ) {
 			my $tmp = uri_unescape($1);
-			$tmp =~ s/_/ /g;
-			return $tmp;
-		    } else { 
-			my $tmp = uri_unescape($avalue);
 			$tmp =~ s/_/ /g;
 			return $tmp;
 		    }
@@ -889,6 +881,14 @@ sub get_tissue_row {
     for (my $i=0; $i<=$last_extraction_slot{ident $self}; $i++) {
         my $ap = $denorm_slots{ident $self}->[$i]->[$row];
         for my $datum (@{$ap->get_input_data()}) {
+            my ($name, $heading, $value) = ($datum->get_name(), $datum->get_heading(), $datum->get_value());
+            if (lc($name) =~ /^\s*tissue\s*$/) {
+                if ( $value =~ /[Tt]issue:(.*?):/ ) {
+                    my $tmp = uri_unescape($1);
+                    $tmp =~ s/_/ /g;
+                    return $tmp;
+                }
+            }
             for my $attr (@{$datum->get_attributes()}) {
                 my ($aname, $aheading, $avalue) = ($attr->get_name(), $attr->get_heading(), $attr->get_value());
                 if (lc($aheading) =~ /^\s*tissue\s*$/) {
@@ -1397,7 +1397,6 @@ sub group_by_this_ap_slot {
     my $sample_name_col = $sample_name_ap_slot{ident $self};
     my $source_name_col = $source_name_ap_slot{ident $self};
     if ( $self->ap_slot_without_real_data($last_extraction_slot{ident $self}) ) {
-	print "last extraction protocol has no real data\n";
 	#first use source name, since most experiment replicates are of biological replicates
 	return [$source_name_col, 'Source\s*Name'] if defined($source_name_col);
 	return [$extract_name_col, 'Extract\s*Name'] if defined($extract_name_col);
@@ -1418,8 +1417,6 @@ sub get_groups {
 	($nr_grp, $all_grp) = $self->group_applied_protocols($denorm_slots->[$last_extraction_slot], 1);
     } else {
 	if ($method eq 'Source\s*Name') {
-	    print "Using Source Name\n";
-	    print "Using protocol slot $last_extraction_slot\n";
 	    $all_grp = $self->group_applied_protocols_by_data($denorm_slots->[$last_extraction_slot], 'input', 'heading', $method);
 	} else { #extract name and sample name are treated by validator as output
 	    $all_grp = $self->group_applied_protocols_by_data($denorm_slots->[$last_extraction_slot], 'output', 'heading', $method);
@@ -1430,26 +1427,26 @@ sub get_groups {
 								     'input', 'name', '\s*array\s*')};
     $all_grp_by_array = $self->group_applied_protocols_by_data($denorm_slots->[$ap_slots->{'hybridization'}],
 							       'input', 'name', 'adf') unless $ok;
-    print 'all groups:', Dumper($all_grp);
-    print 'all groups by array:', Dumper($all_grp_by_array);
+
     my %combined_grp;
     while (my ($row, $extract_grp) = each %$all_grp) {
 	my $array_grp = $all_grp_by_array->{$row};
 	if (exists $combined_grp{$extract_grp}{$array_grp}) {
+            my $this_extract_ap = $denorm_slots->[$last_extraction_slot]->[$row];
+            my $this_hyb_ap = $denorm_slots->[$ap_slots->{'hybridization'}]->[$row];
 	    my $ignore = 0; #possible validator bug might cause repeats of rows in denormalized ap slots
 	    for my $that_row (@{$combined_grp{$extract_grp}{$array_grp}}) {
-		last if $ignore;
-	        for (my $i=$last_extraction_slot; $i<=$ap_slots->{'hybridization'}; $i++) {
-		    my $this_ap = $denorm_slots->[$i]->[$row];
-		    my $that_ap = $denorm_slots->[$i]->[$that_row];
-		    $ignore = 1 and last unless $this_ap->equals($that_ap);
-		}
+                my $that_extract_ap = $denorm_slots->[$last_extraction_slot]->[$that_row];
+                my $that_hyb_ap = $denorm_slots->[$ap_slots->{'hybridization'}]->[$that_row];
+                $ignore = 1 and print "ignored $row!\n" and last if ($this_extract_ap->equals($that_extract_ap) && $this_hyb_ap->equals($that_hyb_ap));
 	    }
 	    push @{$combined_grp{$extract_grp}{$array_grp}}, $row unless $ignore;
 	} else {
 	    $combined_grp{$extract_grp}{$array_grp} = [$row]; 
 	}
     }
+    print Dumper($denorm_slots);
+    print Dumper($all_grp);
     $groups{ident $self} = \%combined_grp;
 }
 
@@ -1461,10 +1458,6 @@ sub group_applied_protocols {
 sub group_applied_protocols_by_data {
     my ($self, $ap_slot, $direction, $field, $fieldtext, $rtn) = @_;
     my $data = _get_data_by_info($ap_slot, $direction, $field, $fieldtext);
-    for my $datum (@$data) {
-	print "#################\n";
-	print $datum->get_heading(), $datum->get_value(), $datum->is_anonymous(), "\n";
-    }
     return _group($data, $rtn);
 }
 
